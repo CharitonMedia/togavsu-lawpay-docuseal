@@ -135,15 +135,8 @@ func (r resp) str(t *testing.T, k string) string {
 // every item the install needs.
 func needCore(t *testing.T, items ...string) {
 	t.Helper()
-	own := coreitems.Missing(items...)
-	install := coreitems.Missing(coreitems.Install...)
-	switch {
-	case len(own) > 0 && len(install) > 0:
-		t.Skipf("needs %s; the install needs %s", strings.Join(own, ", "), strings.Join(install, ", "))
-	case len(own) > 0:
-		t.Skipf("needs %s", strings.Join(own, ", "))
-	case len(install) > 0:
-		t.Skipf("needs %s for the install", strings.Join(install, ", "))
+	if why := coreitems.Skip(items...); why != "" {
+		t.Skip(why)
 	}
 }
 

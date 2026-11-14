@@ -4,6 +4,7 @@
 package coreitems
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -33,9 +34,26 @@ var Unbuilt = map[string]string{
 }
 
 // Install is what the package itself needs before the core installs and deploys it: the
-// manifest fields and linkable records the install check reads, and the scopes the
-// module token is issued with.
-var Install = []string{"CORE-02", "CORE-03", "CORE-04", "CORE-07", "CORE-08", "CORE-10", "CORE-14", "CORE-22", "CORE-23"}
+// manifest fields and linkable records the install check reads (every item in Pending,
+// CORE-24's core.payment_refunds among them), and the scopes the module token is issued
+// with.
+var Install = []string{"CORE-02", "CORE-03", "CORE-04", "CORE-07", "CORE-08", "CORE-10", "CORE-14", "CORE-22", "CORE-23", "CORE-24"}
+
+// Skip is why a test that needs the given items can't run on the pinned core yet, or ""
+// when it can. Every test also needs the install, so the install items count too.
+func Skip(need ...string) string {
+	own := Missing(need...)
+	install := Missing(Install...)
+	switch {
+	case len(own) > 0 && len(install) > 0:
+		return fmt.Sprintf("needs %s; the install needs %s", strings.Join(own, ", "), strings.Join(install, ", "))
+	case len(own) > 0:
+		return "needs " + strings.Join(own, ", ")
+	case len(install) > 0:
+		return fmt.Sprintf("needs %s for the install", strings.Join(install, ", "))
+	}
+	return ""
+}
 
 // Missing returns the items in need that are not built, sorted, without duplicates.
 func Missing(need ...string) []string {
