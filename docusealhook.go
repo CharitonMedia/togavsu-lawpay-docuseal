@@ -223,7 +223,7 @@ func (s *Server) storeSigned(ctx context.Context, st Settings, g Signing) error 
 		return nil
 	}
 	_ = s.setSigning(context.WithoutCancel(ctx), g.ID, `pdf_attempts = pdf_attempts + 1, last_error = $3`, "The signed PDF wasn't stored: "+err.Error())
-	if cur.PDFAttempts+1 >= st.RetryLimit {
+	if cur.PDFAttempts >= st.RetryLimit {
 		s.openException(context.WithoutCancel(ctx), exception{Kind: "signed_pdf_failed", MatterID: g.MatterID, SigningID: g.ID, TransactionID: g.SubmissionID,
 			Detail: "The executed fee agreement couldn't be downloaded from DocuSeal and stored on the matter."})
 	}

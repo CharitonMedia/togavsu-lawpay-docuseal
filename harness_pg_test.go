@@ -87,10 +87,10 @@ type env struct {
 	logs  *logBuf
 
 	admin, attorney, staff, accountant, client User
-	clientContact                          *fakecore.Contact
-	matter                                 *fakecore.Matter
-	trustAccount                           string
-	secrets                                map[string]string
+	clientContact                              *fakecore.Contact
+	matter                                     *fakecore.Matter
+	trustAccount                               string
+	secrets                                    map[string]string
 }
 
 // User is a fake core user with a ready context token.

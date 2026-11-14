@@ -53,9 +53,7 @@ func (s *Server) SaveDraft(ctx context.Context, v viewer, req AgreementRequest) 
 	if !v.canCharge() {
 		return Agreement{}, errForbidden
 	}
-	label, ok := feeTypes[req.FeeType]
-	_ = label
-	if !ok {
+	if _, ok := feeTypes[req.FeeType]; !ok {
 		return Agreement{}, &appError{Status: http.StatusUnprocessableEntity, Code: "validation_failed", Message: "Pick a fee type.", Fields: []string{"fee_type"}}
 	}
 	needsAmount := req.FeeType != "contingency" && req.FeeType != "pro_bono"
