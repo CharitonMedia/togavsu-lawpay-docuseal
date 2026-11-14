@@ -99,7 +99,9 @@ type DocuSealError struct {
 	Message    string
 }
 
-func (e *DocuSealError) Error() string { return fmt.Sprintf("docuseal %d: %s", e.HTTPStatus, e.Message) }
+func (e *DocuSealError) Error() string {
+	return fmt.Sprintf("docuseal %d: %s", e.HTTPStatus, e.Message)
+}
 
 // DocuSealNotFound reports whether err is DocuSeal's 404.
 func DocuSealNotFound(err error) bool {

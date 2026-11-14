@@ -77,9 +77,9 @@ type Server struct {
 	fileGrants map[string]string // matter id -> background file publication grant
 
 	// test hooks for fault injection; nil in production.
-	failStoreIDs  func() error
-	failFileSent  func() error
-	duringVoid    func()
+	failStoreIDs func() error
+	failFileSent func() error
+	duringVoid   func()
 }
 
 // New returns the server.
@@ -263,7 +263,9 @@ type appError struct {
 
 func (e *appError) Error() string { return e.Code + ": " + e.Message }
 
-func fail(status int, code, msg string) *appError { return &appError{Status: status, Code: code, Message: msg} }
+func fail(status int, code, msg string) *appError {
+	return &appError{Status: status, Code: code, Message: msg}
+}
 
 var (
 	errNotFound   = fail(http.StatusNotFound, "not_found", "Not found.")

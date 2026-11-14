@@ -49,7 +49,9 @@ type visibility struct {
 	seen map[string]bool
 }
 
-func (s *Server) visible(v viewer) *visibility { return &visibility{s: s, v: v, seen: map[string]bool{}} }
+func (s *Server) visible(v viewer) *visibility {
+	return &visibility{s: s, v: v, seen: map[string]bool{}}
+}
 
 func (vis *visibility) ok(ctx context.Context, matter string) bool {
 	if matter == "" {

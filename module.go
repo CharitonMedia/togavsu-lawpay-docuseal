@@ -63,7 +63,9 @@ var ErrPackagerPending = errors.New("lawpay-docuseal: packaging and signing wait
 type PendingPackager struct{}
 
 // Package always answers ErrPackagerPending.
-func (PendingPackager) Package(map[string][]byte, string) ([]byte, error) { return nil, ErrPackagerPending }
+func (PendingPackager) Package(map[string][]byte, string) ([]byte, error) {
+	return nil, ErrPackagerPending
+}
 
 // Build packages and signs this module's files with p.
 func Build(p Packager, keyPath string, edit func(map[string][]byte)) ([]byte, error) {

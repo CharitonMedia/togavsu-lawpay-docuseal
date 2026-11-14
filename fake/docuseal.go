@@ -49,7 +49,9 @@ func (f *DocuSeal) id() string {
 	return fmt.Sprintf("%d", 1000+f.seq)
 }
 
-func notFound() error { return &adapters.DocuSealError{HTTPStatus: http.StatusNotFound, Message: "Not found"} }
+func notFound() error {
+	return &adapters.DocuSealError{HTTPStatus: http.StatusNotFound, Message: "Not found"}
+}
 
 // CreateSubmission stores a submission with its submitters, pending.
 func (f *DocuSeal) CreateSubmission(_ context.Context, r adapters.SubmissionRequest) (adapters.Submission, error) {

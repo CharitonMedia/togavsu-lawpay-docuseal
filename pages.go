@@ -486,7 +486,9 @@ func (s *Server) reconciliationTab(ctx context.Context, v viewer, r *http.Reques
 	return "reconciliation", data{"Title": "LawPay reconciliation", "Transactions": ts, "Exceptions": es, "Funded": funded}, nil
 }
 
-func backTo(r *http.Request) string { return "reconciliation?" + url.Values{"context": {contextToken(r)}}.Encode() }
+func backTo(r *http.Request) string {
+	return "reconciliation?" + url.Values{"context": {contextToken(r)}}.Encode()
+}
 
 func (s *Server) resolvePost(ctx context.Context, v viewer, r *http.Request) (string, data, error) {
 	if err := s.Resolve(ctx, v, r.FormValue("exception_id"), r.FormValue("note")); err != nil {

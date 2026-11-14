@@ -70,17 +70,17 @@ func VerifyCoreWebhook(secret, header, timestamp string, body []byte, now time.T
 
 // Event is one core event delivery.
 type Event struct {
-	ID                           string          `json:"id"`
-	Action                       string          `json:"action"`
-	RecordType                   string          `json:"record_type"`
-	RecordID                     string          `json:"record_id"`
-	MatterID                     string          `json:"matter_id"`
-	OccurredAt                   string          `json:"occurred_at"`
-	Module                       string          `json:"module"`
-	ProcessorAuthorization       json.RawMessage `json:"processor_authorization"`
-	RefundAuthorization          json.RawMessage `json:"refund_authorization"`
-	BackgroundFileAuthorization  json.RawMessage `json:"background_file_authorization"`
-	Data                         json.RawMessage `json:"data"`
+	ID                          string          `json:"id"`
+	Action                      string          `json:"action"`
+	RecordType                  string          `json:"record_type"`
+	RecordID                    string          `json:"record_id"`
+	MatterID                    string          `json:"matter_id"`
+	OccurredAt                  string          `json:"occurred_at"`
+	Module                      string          `json:"module"`
+	ProcessorAuthorization      json.RawMessage `json:"processor_authorization"`
+	RefundAuthorization         json.RawMessage `json:"refund_authorization"`
+	BackgroundFileAuthorization json.RawMessage `json:"background_file_authorization"`
+	Data                        json.RawMessage `json:"data"`
 	TaskAuthorizationFromHeader string          `json:"-"`
 }
 
