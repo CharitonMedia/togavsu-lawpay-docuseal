@@ -35,9 +35,10 @@ jobs:
         run: go vet ./...
       - name: Test
         run: go test -race ./...
-      # The core's own check of the package dir, with the parts package/pending.yaml lists
-      # that the pinned core refuses held back.
+      # The core's own check of the package dir, as the marketplace checks it: the parts
+      # package/pending.yaml lists that the pinned core refuses held back, and (-strict)
+      # an entry that holds nothing back fails.
       - name: Package check
-        run: go run github.com/CharitonMedia/togavsu/cmd/togavsu-module check -installable package
+        run: go run github.com/CharitonMedia/togavsu/cmd/togavsu-module check -installable -strict package
       - name: Image
         run: docker build -t togavsu-lawpay-docuseal:ci .

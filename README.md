@@ -119,7 +119,7 @@ icon and order, the client tabs `pay` and `sign` and the home tabs' params, the
 `fee_agreement` extension, the scopes `books:read`, `mail:send` and `client_access:read`,
 and the two trailing migrations that add the foreign keys to core fee agreements
 (`0004_fee_agreement_links.sql`, CORE-22) and core payment refunds
-(`0005_payment_refund_link.sql`, CORE-24). A part the core accepts stays in the package,
+(`0005_payment_refund_link.sql`, CORE-22 and CORE-24). A part the core accepts stays in the package,
 so each returns on its own when its core item lands; migrations are held back whole and
 only after every migration that installs, so a firm that installs today takes them later
 as an update. The package tests build and sign with a generated key, verify the file and

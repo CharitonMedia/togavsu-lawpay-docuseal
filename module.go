@@ -46,23 +46,24 @@ func Files() (map[string][]byte, error) {
 
 // Installable returns the package files the pinned core accepts (modulekit.Installable):
 // the package without package/pending.yaml and without each part it lists that the core
-// still refuses, and the parts it held back. A part the core accepts stays in, so each
-// one returns on its own when its core item lands.
-func Installable() (map[string][]byte, []modulekit.Held, error) {
+// still refuses (Files), the parts it held back (Held) and the entries that held nothing
+// back (Unused). A part the core accepts stays in, so each one returns on its own when
+// its core item lands.
+func Installable() (modulekit.InstallablePackage, error) {
 	files, err := Files()
 	if err != nil {
-		return nil, nil, err
+		return modulekit.InstallablePackage{}, err
 	}
 	return modulekit.Installable(files)
 }
 
 // Build writes the signed package file the admin installs: Installable's files, checked,
-// archived and signed with priv (modulekit.BuildInstallable). It returns the parts it held
-// back.
-func Build(priv ed25519.PrivateKey) ([]byte, []modulekit.Held, error) {
+// archived and signed with priv (modulekit.BuildInstallable). It returns Installable's
+// result with it.
+func Build(priv ed25519.PrivateKey) ([]byte, modulekit.InstallablePackage, error) {
 	files, err := Files()
 	if err != nil {
-		return nil, nil, err
+		return nil, modulekit.InstallablePackage{}, err
 	}
 	return modulekit.BuildInstallable(priv, files)
 }

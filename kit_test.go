@@ -47,7 +47,7 @@ func TestBuildSignsWithModulekit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	signed, held, err := Build(priv)
+	signed, ip, err := Build(priv)
 	if err != nil {
 		t.Fatalf("Build with a valid key: %v", err)
 	}
@@ -55,18 +55,14 @@ func TestBuildSignsWithModulekit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	again, againHeld, err := modulekit.BuildInstallable(priv, files)
-	if err != nil || !bytes.Equal(signed, again) || len(againHeld) != len(held) {
+	again, againIP, err := modulekit.BuildInstallable(priv, files)
+	if err != nil || !bytes.Equal(signed, again) || len(againIP.Held) != len(ip.Held) {
 		t.Fatalf("Build is not modulekit.BuildInstallable of the package files: %v", err)
 	}
-	entries, err := modulekit.ParsePending(files[modulekit.PendingFile])
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, e := range modulekit.Unused(entries, held) {
+	for _, e := range ip.Unused {
 		t.Errorf("pending.yaml: %s (%s) holds nothing back; the core accepts it or the package no longer has it, so drop the entry", e.Part(), e.Core)
 	}
-	for _, h := range held {
+	for _, h := range ip.Held {
 		t.Logf("%s", h)
 	}
 
@@ -89,11 +85,11 @@ func TestBuildSignsWithModulekit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("VerifyFile: %v", err)
 	}
-	installable, _, err := Installable()
+	installable, err := Installable()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v.ModuleID != ID || v.Signer.KeyID != modulekit.KeyID(pub) || len(ms) != countMigrations(installable) {
+	if v.ModuleID != ID || v.Signer.KeyID != modulekit.KeyID(pub) || len(ms) != countMigrations(installable.Files) {
 		t.Fatalf("verified %+v, %d migrations", v, len(ms))
 	}
 	shipped, err := modulekit.ReadPackage(pkg)

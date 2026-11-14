@@ -21,7 +21,7 @@ func TestInstallIsThePendingList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, held, err := lawpaydocuseal.Installable()
+	ip, err := lawpaydocuseal.Installable()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,9 +30,11 @@ func TestInstallIsThePendingList(t *testing.T) {
 		install[item] = true
 	}
 	for _, e := range entries {
-		pending[e.Core] = true
-		if !install[e.Core] {
-			t.Errorf("pending.yaml %s waits on %s, which is not in Install", e.Part(), e.Core)
+		for _, item := range e.Core {
+			pending[item] = true
+			if !install[item] {
+				t.Errorf("pending.yaml %s waits on %s, which is not in Install", e.Part(), item)
+			}
 		}
 	}
 	for _, item := range Install {
@@ -40,9 +42,11 @@ func TestInstallIsThePendingList(t *testing.T) {
 			t.Errorf("Install has %s, but no pending.yaml entry waits on it", item)
 		}
 	}
-	for _, h := range held {
-		if _, ok := Unbuilt[h.Pending.Core]; !ok {
-			t.Errorf("%s is held back for %s, which Unbuilt counts as built", h.Part, h.Pending.Core)
+	for _, h := range ip.Held {
+		for _, item := range h.Pending.Core {
+			if _, ok := Unbuilt[item]; !ok {
+				t.Errorf("%s is held back for %s, which Unbuilt counts as built", h.Part, item)
+			}
 		}
 	}
 }

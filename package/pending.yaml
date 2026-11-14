@@ -21,12 +21,11 @@ pending:
   - field: sidebar[*].order
     core: CORE-08
     reason: Places the LawPay sidebar entry within Money.
-  # tabs[4] and tabs[5] are the client tabs pay and sign; they go whole. List items are
-  # named by index, so keep these in step with the order of tabs in the manifest.
-  - field: tabs[4]
+  # The client tabs pay and sign go whole, selected by id wherever they sit in tabs.
+  - field: tabs[id=pay]
     core: CORE-10
     reason: The client pay tab, framed in the portal and kept out of its nav.
-  - field: tabs[5]
+  - field: tabs[id=sign]
     core: CORE-10
     reason: The client sign tab, framed in the portal and kept out of its nav.
   - field: tabs[*].params
@@ -48,5 +47,5 @@ pending:
     core: CORE-22
     reason: Links agreement details and signings to the core fee agreement.
   - migration: migrations/0005_payment_refund_link.sql
-    core: CORE-24
-    reason: Links a LawPay refund to its core payment refund (linkable once CORE-22 lands).
+    core: [CORE-22, CORE-24]
+    reason: Links a LawPay refund to its core payment refund.

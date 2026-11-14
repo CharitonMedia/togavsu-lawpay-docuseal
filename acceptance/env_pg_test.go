@@ -723,11 +723,11 @@ func signedPackage(t *testing.T) ([]byte, ed25519.PublicKey) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	signed, held, err := lawpaydocuseal.Build(priv)
+	signed, ip, err := lawpaydocuseal.Build(priv)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, h := range held {
+	for _, h := range ip.Held {
 		t.Logf("%s", h)
 	}
 	return signed, pub

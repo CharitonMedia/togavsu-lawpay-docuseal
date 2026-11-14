@@ -149,19 +149,11 @@ func buildSigned(keyFile, dir string) (built, error) {
 	if err != nil {
 		return built{}, err
 	}
-	signed, held, err := modulekit.BuildInstallable(priv, files)
+	signed, ip, err := modulekit.BuildInstallable(priv, files)
 	if err != nil {
 		return built{}, refused(err)
 	}
-	b := built{signed: signed, pub: priv.Public().(ed25519.PublicKey), held: held}
-	if src, ok := files[modulekit.PendingFile]; ok {
-		entries, err := modulekit.ParsePending(src)
-		if err != nil {
-			return built{}, refused(err)
-		}
-		b.unused = modulekit.Unused(entries, held)
-	}
-	return b, nil
+	return built{signed: signed, pub: priv.Public().(ed25519.PublicKey), held: ip.Held, unused: ip.Unused}, nil
 }
 
 // refused is a build error with every refusal on its own line.
