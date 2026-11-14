@@ -16,6 +16,9 @@ var errAmount = errors.New("lawpay-docuseal: enter an amount like 250 or 250.00"
 func ParseDollars(s string) (int64, error) {
 	s = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(s), "$"))
 	s = strings.ReplaceAll(s, ",", "")
+	if s == "" {
+		return 0, errAmount
+	}
 	whole, frac, dot := strings.Cut(s, ".")
 	if whole == "" {
 		whole = "0"
