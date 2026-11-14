@@ -9,9 +9,9 @@
 // payment and a LawPay refund becomes a core payment refund. Its own records live in schema
 // mod_lawpay_docuseal, linked to core ids by ON DELETE RESTRICT foreign keys.
 //
-// Packaging and signing go through the core's public module kit (pkg/modulekit): Archive
-// writes the installable tar and Build signs it, so the package is checked and signed by
-// the code the core runs at install.
+// Packaging and signing go through the core's public module kit (pkg/modulekit): Build
+// holds back the parts package/pending.yaml lists that the pinned core refuses, then checks
+// and signs the rest with the code the core runs at install.
 package lawpaydocuseal
 
 import (
@@ -33,9 +33,9 @@ const ManifestFile = "togavsu-module.yaml"
 //go:embed package
 var packageFS embed.FS
 
-// Files returns the package files (manifest and migrations) by package path, read with
-// the kit's rules (names starting with "." or "_" left out), so the embedded package and
-// the package directory on disk ship the same bytes.
+// Files returns the package files (manifest, migrations and pending.yaml) by package
+// path, read with the kit's rules (names starting with "." or "_" left out), so the
+// embedded package and the package directory on disk ship the same bytes.
 func Files() (map[string][]byte, error) {
 	dir, err := fs.Sub(packageFS, "package")
 	if err != nil {
@@ -44,34 +44,27 @@ func Files() (map[string][]byte, error) {
 	return modulekit.Files(dir)
 }
 
-// Archive writes the installable package, the gzip tar the core installs
-// (modulekit.Archive). edit, when set, changes the files first; tests use it for
-// tampered and refused variants.
-func Archive(edit func(map[string][]byte)) ([]byte, error) {
+// Installable returns the package files the pinned core accepts (modulekit.Installable):
+// the package without package/pending.yaml and without each part it lists that the core
+// still refuses, and the parts it held back. A part the core accepts stays in, so each
+// one returns on its own when its core item lands.
+func Installable() (map[string][]byte, []modulekit.Held, error) {
 	files, err := Files()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if edit != nil {
-		edit(files)
-	}
-	return modulekit.Archive(files)
+	return modulekit.Installable(files)
 }
 
-// Build writes the package signed with priv as the signed package file the admin
-// installs: Archive, then SignFile.
-func Build(priv ed25519.PrivateKey, edit func(map[string][]byte)) ([]byte, error) {
-	pkg, err := Archive(edit)
+// Build writes the signed package file the admin installs: Installable's files, checked,
+// archived and signed with priv (modulekit.BuildInstallable). It returns the parts it held
+// back.
+func Build(priv ed25519.PrivateKey) ([]byte, []modulekit.Held, error) {
+	files, err := Files()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return SignFile(priv, pkg)
-}
-
-// SignFile wraps package bytes in a signed package file (modulekit.SignFile): the
-// package, its digest, an Ed25519 signature over the exact bytes and the key id.
-func SignFile(priv ed25519.PrivateKey, pkg []byte) ([]byte, error) {
-	return modulekit.SignFile(priv, pkg)
+	return modulekit.BuildInstallable(priv, files)
 }
 
 // settingDefault is the default the manifest declares for a setting key, or "" when it

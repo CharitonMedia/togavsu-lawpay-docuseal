@@ -280,7 +280,7 @@ func newCoreEnv(t *testing.T, items ...string) *coreEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	signed, err := lawpaydocuseal.Build(priv, nil)
+	signed, _, err := lawpaydocuseal.Build(priv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -715,16 +715,20 @@ func serveBare(c *coretest.Core) {
 	})
 }
 
-// signedPackage builds and signs the package with a generated key.
+// signedPackage builds and signs the installable package with a generated key: the
+// package without the parts the pinned core refuses (package/pending.yaml).
 func signedPackage(t *testing.T) ([]byte, ed25519.PublicKey) {
 	t.Helper()
 	pub, priv, err := ed25519.GenerateKey(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	signed, err := lawpaydocuseal.Build(priv, nil)
+	signed, held, err := lawpaydocuseal.Build(priv)
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, h := range held {
+		t.Logf("%s", h)
 	}
 	return signed, pub
 }
@@ -761,21 +765,15 @@ func TestCoreInstallRefusesUntrustedOrTampered(t *testing.T) {
 	}
 }
 
-// A trusted package installs, waits for approval, deploys with its own token and
-// database login on its own schema, verifies a viewer's context, and uninstalls with its
-// data deleted.
+// A trusted package, with the parts the pinned core refuses held back, installs, waits for
+// approval, deploys with its own token and database login on its own schema, verifies a
+// viewer's context, and uninstalls with its data deleted.
 func TestCoreInstall(t *testing.T) {
 	c := coretest.New(t)
 	serveBare(c)
 	signed, pub := signedPackage(t)
 	c.TrustKey("LawPay and DocuSeal test key", pub)
-	r := c.TryInstall(signed)
-	if r.Code != http.StatusAccepted {
-		msg, _ := r.JSON["message"].(string)
-		if items := coreitems.Explain(msg); len(items) > 0 {
-			t.Skipf("needs %s for the install; the pinned core refuses it first for %s: %d %s",
-				strings.Join(coreitems.Missing(coreitems.Install...), ", "), strings.Join(items, ", "), r.Code, r.Body)
-		}
+	if r := c.TryInstall(signed); r.Code != http.StatusAccepted {
 		t.Fatalf("install: %d %s", r.Code, r.Body)
 	}
 	if len(c.Runtime.Deployments()) != 0 || c.SchemaExists(modID) {

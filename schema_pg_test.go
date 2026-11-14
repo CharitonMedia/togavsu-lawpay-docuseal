@@ -49,6 +49,14 @@ func TestPGMigrationsShape(t *testing.T) {
 	if core == 0 {
 		t.Fatal("no foreign keys to core found")
 	}
+	// The keys the trailing migrations 0004 and 0005 add once their core items land.
+	for _, k := range [][2]string{{"agreement_details_fee_agreement_id_fkey", "core.fee_agreements"},
+		{"signings_fee_agreement_id_fkey", "core.fee_agreements"}, {"lawpay_refunds_core_refund_id_fkey", "core.payment_refunds"}} {
+		if n := e.count(`SELECT count(*) FROM pg_constraint WHERE conname = $1 AND contype = 'f' AND confdeltype = 'r'
+			AND confrelid = $2::regclass AND connamespace = (SELECT oid FROM pg_namespace WHERE nspname = current_schema())`, k[0], k[1]); n != 1 {
+			t.Errorf("foreign key %s to %s missing", k[0], k[1])
+		}
+	}
 	for _, v := range []string{"invoice_payability", "matter_payability", "signature_requests"} {
 		if n := e.count(`SELECT count(*) FROM information_schema.views WHERE table_schema = current_schema() AND table_name = $1`, v); n != 1 {
 			t.Errorf("view %s missing", v)
@@ -56,9 +64,11 @@ func TestPGMigrationsShape(t *testing.T) {
 	}
 }
 
-var statementRe = regexp.MustCompile(`(?s)^(CREATE TABLE|CREATE INDEX|CREATE UNIQUE INDEX|CREATE VIEW) `)
+var statementRe = regexp.MustCompile(`(?s)^(CREATE TABLE|CREATE INDEX|CREATE UNIQUE INDEX|CREATE VIEW|ALTER TABLE \w+ ADD CONSTRAINT \w+\s+FOREIGN KEY)\s`)
 
-// Migrations hold only CREATE TABLE, INDEX and VIEW statements.
+// Migrations hold only CREATE TABLE, INDEX and VIEW statements, and the foreign keys to
+// core records that wait on a core item, added in their own trailing migration
+// (package/pending.yaml).
 func TestMigrationsOnlyCreate(t *testing.T) {
 	files, err := Files()
 	if err != nil {

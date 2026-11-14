@@ -3,18 +3,46 @@ package coreitems
 import (
 	"strings"
 	"testing"
+
+	"github.com/CharitonMedia/togavsu/pkg/modulekit"
+
+	lawpaydocuseal "github.com/CharitonMedia/togavsu-lawpay-docuseal"
 )
 
-// Every pending package field is an install prerequisite: the core refuses the package
-// until its item lands.
-func TestPendingItemsAreInstallItems(t *testing.T) {
-	install := map[string]bool{}
+// Install is exactly the core items package/pending.yaml names, and every part the
+// pinned core holds back waits on an item listed as unbuilt, so no criterion runs on a
+// core that still holds back part of the module.
+func TestInstallIsThePendingList(t *testing.T) {
+	files, err := lawpaydocuseal.Files()
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries, err := modulekit.ParsePending(files[modulekit.PendingFile])
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, held, err := lawpaydocuseal.Installable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	install, pending := map[string]bool{}, map[string]bool{}
 	for _, item := range Install {
 		install[item] = true
 	}
-	for _, f := range Pending {
-		if !install[f.Item] {
-			t.Errorf("%s (%s) is pending in the package but not in Install", f.Name, f.Item)
+	for _, e := range entries {
+		pending[e.Core] = true
+		if !install[e.Core] {
+			t.Errorf("pending.yaml %s waits on %s, which is not in Install", e.Part(), e.Core)
+		}
+	}
+	for _, item := range Install {
+		if !pending[item] {
+			t.Errorf("Install has %s, but no pending.yaml entry waits on it", item)
+		}
+	}
+	for _, h := range held {
+		if _, ok := Unbuilt[h.Pending.Core]; !ok {
+			t.Errorf("%s is held back for %s, which Unbuilt counts as built", h.Part, h.Pending.Core)
 		}
 	}
 }

@@ -35,10 +35,9 @@ jobs:
         run: go vet ./...
       - name: Test
         run: go test -race ./...
-      # The core CLI check of the shipped package dir returns when module-core lands:
-      #   go run github.com/CharitonMedia/togavsu/cmd/togavsu-module check package
-      # Until then core main refuses the spec's pending fields. The package tests run the
-      # same check on a copy without them (internal/coreitems.Pending) and fail once the
-      # core accepts any of them.
+      # The core's own check of the package dir, with the parts package/pending.yaml lists
+      # that the pinned core refuses held back.
+      - name: Package check
+        run: go run github.com/CharitonMedia/togavsu/cmd/togavsu-module check -installable package
       - name: Image
         run: docker build -t togavsu-lawpay-docuseal:ci .

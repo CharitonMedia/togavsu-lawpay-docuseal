@@ -1,6 +1,9 @@
 // Package coreitems names the core changes (docs/modules/CORE-CHANGES.md in the core
 // repository) this module needs and which of them the pinned core (go.mod) does not build
 // yet, so the tests that run on the real core can skip a criterion until its items land.
+// It is for skipping tests only: what the package holds back is package/pending.yaml's
+// business (modulekit.Installable). The kit can't report which CORE items a core builds,
+// so Unbuilt is kept by hand.
 package coreitems
 
 import (
@@ -33,10 +36,13 @@ var Unbuilt = map[string]string{
 	"conflict_check.decided": "a core conflict_check.decided event with the check's decision",
 }
 
-// Install is what the package itself needs before the core installs and deploys it: the
-// manifest fields and linkable records the install check reads (every item in Pending,
-// CORE-24's core.payment_refunds among them), and the scopes the module token is issued
-// with.
+// Install is every core item a part of the package waits on: each core item
+// package/pending.yaml names. Until they land the pinned core installs the package with
+// those parts held back (modulekit.Installable), so the module runs without its provider
+// webhooks, processor registration, notifications, client tabs, mail, books and client
+// access scopes and its fee agreement and payment refund links; the criteria need the
+// whole module, so every one of them counts these items too. The package tests check this
+// list against pending.yaml.
 var Install = []string{"CORE-02", "CORE-03", "CORE-04", "CORE-07", "CORE-08", "CORE-10", "CORE-14", "CORE-22", "CORE-23", "CORE-24"}
 
 // Skip is why a test that needs the given items can't run on the pinned core yet, or ""
@@ -67,37 +73,4 @@ func Missing(need ...string) []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-// gaps maps a refusal the pinned core gives this package to the items that remove it.
-var gaps = []struct {
-	text  string
-	items []string
-}{
-	{`unknown field "inbound_webhooks"`, []string{"CORE-07"}},
-	{`unknown field "payment_processor"`, []string{"CORE-23"}},
-	{`unknown field "notifications"`, []string{"CORE-03"}},
-	{`unknown field "section"`, []string{"CORE-08"}},
-	{`unknown field "icon"`, []string{"CORE-08"}},
-	{`unknown field "order"`, []string{"CORE-08"}},
-	{`unknown field "params"`, []string{"CORE-10"}},
-	{`unknown field "nav"`, []string{"CORE-10"}},
-	{"placement is home or matter", []string{"CORE-10"}},
-	{"unknown core record fee_agreement", []string{"CORE-22"}},
-	{"unknown core record payment_refund", []string{"CORE-22"}},
-	{"core.fee_agreements", []string{"CORE-22"}},
-	{"core.payment_refunds", []string{"CORE-22", "CORE-24"}},
-	// books:read, mail:send and client_access:read are not in the core's scope catalog.
-	{"unknown scope", []string{"CORE-02", "CORE-04", "CORE-14"}},
-}
-
-// Explain returns the unbuilt items a core refusal points to, or nil when no missing
-// item explains it (a real defect in the package).
-func Explain(refusal string) []string {
-	for _, g := range gaps {
-		if strings.Contains(refusal, g.text) {
-			return Missing(g.items...)
-		}
-	}
-	return nil
 }

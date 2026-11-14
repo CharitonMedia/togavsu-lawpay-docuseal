@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,6 @@ import (
 	"github.com/CharitonMedia/togavsu/pkg/modulekit"
 
 	lawpaydocuseal "github.com/CharitonMedia/togavsu-lawpay-docuseal"
-	"github.com/CharitonMedia/togavsu-lawpay-docuseal/internal/coreitems"
 )
 
 // keyFile writes a generated seed as a key file and returns its path and public key.
@@ -44,93 +44,108 @@ func writeDir(t *testing.T, files map[string][]byte) string {
 	return dir
 }
 
-// pendingDir writes the package files without the given pending fields.
-func pendingDir(t *testing.T, fields ...coreitems.Field) string {
+// packageFiles is the module's package files, pending.yaml included.
+func packageFiles(t *testing.T) map[string][]byte {
 	t.Helper()
 	files, err := lawpaydocuseal.Files()
 	if err != nil {
 		t.Fatal(err)
 	}
-	stripped, err := coreitems.Strip(files, fields...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return writeDir(t, stripped)
+	return files
 }
 
-// The package subcommand refuses the full package only for the fields the pinned core
-// does not accept yet, and signs the rest with the key file's seed into a file that
-// passes the core's whole local-install check.
+// The package subcommand always builds and signs, with a key generated here, a package
+// the pinned core accepts: it holds back each part pending.yaml lists that the core
+// refuses, the signed file passes the core's whole local-install check, and its files
+// pass modulekit.Check with no refusals. It fails when pending.yaml misses a refusal (the
+// build then errors) or holds an entry that holds nothing back.
 func TestPackageBuildsAndVerifies(t *testing.T) {
 	key, pub := keyFile(t)
-	signed, _, err := buildSigned(key, "")
-	if err == nil || signed != nil || len(coreitems.Explain(err.Error())) == 0 {
-		t.Fatalf("the full package: %v, want a refusal for a pending field", err)
-	}
-	signed, got, err := buildSigned(key, pendingDir(t, coreitems.Pending...))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !got.Equal(pub) {
-		t.Fatal("signed with another key")
-	}
-	if _, _, err := modulekit.VerifyFile(signed, []modulekit.TrustedKey{modulekit.Trust(pub)}); err != nil {
-		t.Fatalf("VerifyFile: %v", err)
-	}
-}
-
-// Each pending field alone is still refused, for its own item. When the core starts to
-// accept one, this fails until the field leaves coreitems.Pending.
-func TestPendingFieldsStillRefused(t *testing.T) {
-	for i, f := range coreitems.Pending {
-		var rest []coreitems.Field
-		rest = append(rest, coreitems.Pending[:i]...)
-		rest = append(rest, coreitems.Pending[i+1:]...)
-		files, err := modulekit.ReadDir(pendingDir(t, rest...))
+	for _, dir := range []string{"", writeDir(t, packageFiles(t))} {
+		b, err := buildSigned(key, dir)
+		if err != nil {
+			t.Fatalf("build with a valid key (dir %q): %v", dir, err)
+		}
+		if !b.pub.Equal(pub) {
+			t.Fatal("signed with another key")
+		}
+		for _, e := range b.unused {
+			t.Errorf("pending.yaml: %s (%s) holds nothing back; drop the entry", e.Part(), e.Core)
+		}
+		if len(b.held) == 0 {
+			t.Error("nothing held back, but the pinned core refuses parts of the package; is pending.yaml read?")
+		}
+		v, _, err := modulekit.VerifyFile(b.signed, []modulekit.TrustedKey{modulekit.Trust(pub)})
+		if err != nil {
+			t.Fatalf("VerifyFile: %v", err)
+		}
+		if v.ModuleID != lawpaydocuseal.ID {
+			t.Fatalf("verified %+v", v)
+		}
+		var sp modulekit.SignedPackage
+		if err := json.Unmarshal(b.signed, &sp); err != nil {
+			t.Fatal(err)
+		}
+		raw, err := base64.StdEncoding.DecodeString(sp.PackageBase64)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, _, err = modulekit.Check(files)
-		if err == nil {
-			t.Errorf("%s (%s): the core accepts it now; drop it from coreitems.Pending", f.Name, f.Item)
-			continue
+		pkg, err := modulekit.ReadPackage(raw)
+		if err != nil {
+			t.Fatal(err)
 		}
-		if items := coreitems.Explain(err.Error()); !contains(items, f.Item) {
-			t.Errorf("%s (%s): refused for %v: %v", f.Name, f.Item, items, err)
+		if refs := modulekit.CheckAll(pkg.Files); len(refs) != 0 {
+			t.Fatalf("modulekit.Check of the signed files: %v", refs)
 		}
 	}
 }
 
-func contains(list []string, s string) bool {
-	for _, v := range list {
-		if v == s {
-			return true
-		}
+// A pending list that misses a refusal fails the build and names the refusal; an entry
+// for a part the core accepts is reported as holding nothing back.
+func TestPackagePendingListIsChecked(t *testing.T) {
+	key, _ := keyFile(t)
+	files := packageFiles(t)
+	src := string(files[modulekit.PendingFile])
+	entry := "  - field: notifications\n    core: CORE-03\n    reason: Declares the exception and proposed refund notification kinds.\n"
+	if !strings.Contains(src, entry) {
+		t.Fatal("pending.yaml has no notifications entry to drop")
 	}
-	return false
+	files[modulekit.PendingFile] = []byte(strings.Replace(src, entry, "", 1))
+	_, err := buildSigned(key, writeDir(t, files))
+	if err == nil || !strings.Contains(err.Error(), "togavsu-module.yaml notifications: unknown_field") {
+		t.Fatalf("a pending list without notifications: %v", err)
+	}
+
+	files = packageFiles(t)
+	files[modulekit.PendingFile] = append(files[modulekit.PendingFile],
+		[]byte("  - field: help.heading\n    core: CORE-99\n    reason: Accepted already.\n")...)
+	b, err := buildSigned(key, writeDir(t, files))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b.unused) != 1 || b.unused[0].Field != "help.heading" {
+		t.Fatalf("unused %+v", b.unused)
+	}
 }
 
 // It refuses a bad key file and a package the core's check refuses, and signs nothing.
 func TestPackageRefuses(t *testing.T) {
 	key, _ := keyFile(t)
-	dir := pendingDir(t, coreitems.Pending...)
+	dir := writeDir(t, packageFiles(t))
 	bad := filepath.Join(t.TempDir(), "bad.key")
 	if err := os.WriteFile(bad, []byte("not a seed"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := buildSigned(bad, dir); err == nil {
+	if _, err := buildSigned(bad, dir); err == nil {
 		t.Fatal("signed with a bad key file")
 	}
-	if _, _, err := buildSigned(filepath.Join(t.TempDir(), "missing.key"), dir); err == nil {
+	if _, err := buildSigned(filepath.Join(t.TempDir(), "missing.key"), dir); err == nil {
 		t.Fatal("signed with no key file")
 	}
-	files, err := modulekit.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	files := packageFiles(t)
 	files[lawpaydocuseal.ManifestFile] = []byte(strings.Replace(string(files[lawpaydocuseal.ManifestFile]), "id: lawpay-docuseal\n", "id: Not A Slug\n", 1))
-	signed, _, err := buildSigned(key, writeDir(t, files))
-	if err == nil || signed != nil || !strings.Contains(err.Error(), "package refused (validation)") {
+	b, err := buildSigned(key, writeDir(t, files))
+	if err == nil || b.signed != nil || !strings.Contains(err.Error(), "package refused (validation)") {
 		t.Fatalf("a refused package: %v", err)
 	}
 }

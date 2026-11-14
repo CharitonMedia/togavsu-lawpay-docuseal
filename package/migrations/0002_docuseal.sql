@@ -1,9 +1,10 @@
 -- DocuSeal records for fee agreements. Contact details are read from the core at send time
--- and never stored here.
+-- and never stored here. The foreign keys to core.fee_agreements are in
+-- 0004_fee_agreement_links.sql.
 
 -- The declared extension of the core fee agreement (include=lawpay-docuseal.agreement_details).
 CREATE TABLE agreement_details (
-  fee_agreement_id TEXT PRIMARY KEY REFERENCES core.fee_agreements (id) ON DELETE RESTRICT,
+  fee_agreement_id TEXT PRIMARY KEY,
   case_number TEXT NOT NULL DEFAULT '' CHECK (length(case_number) <= 100),
   new_case BOOLEAN,
   updated_at TIMESTAMPTZ NOT NULL
@@ -12,7 +13,7 @@ CREATE TABLE agreement_details (
 -- One DocuSeal submission per send of a fee agreement.
 CREATE TABLE signings (
   id TEXT PRIMARY KEY,
-  fee_agreement_id TEXT NOT NULL REFERENCES core.fee_agreements (id) ON DELETE RESTRICT,
+  fee_agreement_id TEXT NOT NULL,
   matter_id TEXT NOT NULL REFERENCES core.matters (id) ON DELETE RESTRICT,
   client_contact_id TEXT NOT NULL REFERENCES core.contacts (id) ON DELETE RESTRICT,
   state TEXT NOT NULL CHECK (state IN ('sending', 'sent', 'client_signed', 'processing_post_execution', 'executed',

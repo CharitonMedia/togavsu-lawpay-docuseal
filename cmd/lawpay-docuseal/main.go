@@ -3,6 +3,9 @@
 //	lawpay-docuseal serve -core http://core:8080 -secrets /run/secrets -db-host postgres:5432 -db-name togavsu
 //	lawpay-docuseal package -key signing.key -out lawpay-docuseal.signed.json [-dir package]
 //
+// package holds back the parts package/pending.yaml lists that the pinned core refuses,
+// prints one line for each with the core item it waits on, and signs the rest.
+//
 // Secrets come from the Docker secrets the core hands the supervisor: togavsu_api_token,
 // togavsu_webhook_secret, togavsu_db_role, togavsu_db_password and togavsu_db_schema.
 // LawPay and DocuSeal keys are module settings an admin enters at runtime; the module
@@ -13,6 +16,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -96,28 +100,45 @@ func pack(args []string) {
 	out := fs.String("out", "lawpay-docuseal.signed.json", "signed package file to write")
 	dir := fs.String("dir", "", "package directory to build instead of the embedded package")
 	_ = fs.Parse(args)
-	signed, pub, err := buildSigned(*keyFile, *dir)
+	b, err := buildSigned(*keyFile, *dir)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := os.WriteFile(*out, signed, signedFileMode); err != nil {
+	for _, h := range b.held {
+		fmt.Fprintln(os.Stderr, h.String())
+	}
+	for _, e := range b.unused {
+		fmt.Fprintf(os.Stderr, "pending %s (%s) holds nothing back: the core accepts it or the package no longer has it\n", e.Part(), e.Core)
+	}
+	if err := os.WriteFile(*out, b.signed, signedFileMode); err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("wrote %s, signed by key %s\npublic key (add it as a trusted signing key, public_key_pem):\n%s",
-		*out, modulekit.KeyID(pub), modulekit.PublicKeyPEM(pub))
+		*out, modulekit.KeyID(b.pub), modulekit.PublicKeyPEM(b.pub))
+}
+
+// built is a signed package file, its signer's public key, the parts the pinned core
+// refuses that were held back (package/pending.yaml), and the pending entries that held
+// nothing back.
+type built struct {
+	signed []byte
+	pub    ed25519.PublicKey
+	held   []modulekit.Held
+	unused []modulekit.Pending
 }
 
 // buildSigned reads the signing key and the package files (the embedded package, or dir
-// when set), refuses what the core's install check refuses, as togavsu-module package
-// does, and returns the signed package file and the signer's public key.
-func buildSigned(keyFile, dir string) ([]byte, ed25519.PublicKey, error) {
+// when set), holds back the pending parts the core refuses and signs the rest
+// (modulekit.BuildInstallable), as togavsu-module package -installable does. It refuses,
+// listing every refusal, a package the core would refuse once those parts are out.
+func buildSigned(keyFile, dir string) (built, error) {
 	raw, err := os.ReadFile(keyFile)
 	if err != nil {
-		return nil, nil, err
+		return built{}, err
 	}
 	priv, err := modulekit.ParseSeed(string(raw))
 	if err != nil {
-		return nil, nil, err
+		return built{}, err
 	}
 	var files map[string][]byte
 	if dir != "" {
@@ -126,14 +147,32 @@ func buildSigned(keyFile, dir string) ([]byte, ed25519.PublicKey, error) {
 		files, err = lawpaydocuseal.Files()
 	}
 	if err != nil {
-		return nil, nil, err
+		return built{}, err
 	}
-	if _, _, err := modulekit.Check(files); err != nil {
-		return nil, nil, fmt.Errorf("package refused (%s): %w", modulekit.Code(err), err)
-	}
-	signed, err := modulekit.Build(priv, files)
+	signed, held, err := modulekit.BuildInstallable(priv, files)
 	if err != nil {
-		return nil, nil, err
+		return built{}, refused(err)
 	}
-	return signed, priv.Public().(ed25519.PublicKey), nil
+	b := built{signed: signed, pub: priv.Public().(ed25519.PublicKey), held: held}
+	if src, ok := files[modulekit.PendingFile]; ok {
+		entries, err := modulekit.ParsePending(src)
+		if err != nil {
+			return built{}, refused(err)
+		}
+		b.unused = modulekit.Unused(entries, held)
+	}
+	return b, nil
+}
+
+// refused is a build error with every refusal on its own line.
+func refused(err error) error {
+	var refs modulekit.Refusals
+	if !errors.As(err, &refs) {
+		return fmt.Errorf("package refused (%s): %w", modulekit.Code(err), err)
+	}
+	lines := make([]string, zero, len(refs))
+	for _, r := range refs {
+		lines = append(lines, fmt.Sprintf("%s: %s: %s", r.Where(), r.Code, r.Message))
+	}
+	return fmt.Errorf("package refused (%s):\n%s", modulekit.Code(err), strings.Join(lines, "\n"))
 }

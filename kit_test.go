@@ -5,26 +5,11 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/CharitonMedia/togavsu/pkg/modulekit"
-
-	"github.com/CharitonMedia/togavsu-lawpay-docuseal/internal/coreitems"
 )
-
-// stripPending is a Build edit that removes the fields the pinned core does not accept
-// yet (coreitems.Pending).
-func stripPending(t *testing.T) func(map[string][]byte) {
-	return func(files map[string][]byte) {
-		stripped, err := coreitems.Strip(files, coreitems.Pending...)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for name, b := range stripped {
-			files[name] = b
-		}
-	}
-}
 
 // The embedded package and the package directory on disk are the same files.
 func TestFilesMatchPackageDir(t *testing.T) {
@@ -44,47 +29,54 @@ func TestFilesMatchPackageDir(t *testing.T) {
 			t.Errorf("%s differs between the embedded package and the package dir", name)
 		}
 	}
-	for _, want := range []string{ManifestFile, "migrations/0001_lawpay.sql", "migrations/0002_docuseal.sql", "migrations/0003_portal.sql"} {
+	for _, want := range []string{ManifestFile, modulekit.PendingFile, "migrations/0001_lawpay.sql", "migrations/0002_docuseal.sql",
+		"migrations/0003_portal.sql", "migrations/0004_fee_agreement_links.sql", "migrations/0005_payment_refund_link.sql"} {
 		if _, ok := embedded[want]; !ok {
 			t.Errorf("package lacks %s", want)
 		}
 	}
 }
 
-// Build signs the kit's archive with a generated key, the signature verifies against
-// that key only, and a changed byte or another key is refused.
+// Build signs the installable package with a key generated here: it is
+// modulekit.BuildInstallable of the package files, it holds back exactly what
+// pending.yaml lists and nothing more, the signed file passes the core's whole
+// local-install check, its files pass modulekit.Check with no refusals, and a changed
+// byte or another key is refused.
 func TestBuildSignsWithModulekit(t *testing.T) {
 	pub, priv, err := ed25519.GenerateKey(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pkg, err := Archive(nil)
+	signed, held, err := Build(priv)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Build with a valid key: %v", err)
 	}
 	files, err := Files()
 	if err != nil {
 		t.Fatal(err)
 	}
-	kitPkg, err := modulekit.Archive(files)
-	if err != nil || !bytes.Equal(pkg, kitPkg) {
-		t.Fatalf("Archive is not modulekit.Archive of the package files: %v", err)
+	again, againHeld, err := modulekit.BuildInstallable(priv, files)
+	if err != nil || !bytes.Equal(signed, again) || len(againHeld) != len(held) {
+		t.Fatalf("Build is not modulekit.BuildInstallable of the package files: %v", err)
 	}
-	signed, err := Build(priv, nil)
+	entries, err := modulekit.ParsePending(files[modulekit.PendingFile])
 	if err != nil {
 		t.Fatal(err)
 	}
-	again, err := SignFile(priv, pkg)
-	if err != nil || !bytes.Equal(signed, again) {
-		t.Fatalf("Build is not SignFile(Archive): %v", err)
+	for _, e := range modulekit.Unused(entries, held) {
+		t.Errorf("pending.yaml: %s (%s) holds nothing back; the core accepts it or the package no longer has it, so drop the entry", e.Part(), e.Core)
 	}
+	for _, h := range held {
+		t.Logf("%s", h)
+	}
+
 	var sp modulekit.SignedPackage
 	if err := json.Unmarshal(signed, &sp); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := base64.StdEncoding.DecodeString(sp.PackageBase64)
-	if err != nil || !bytes.Equal(raw, pkg) {
-		t.Fatalf("signed file carries other package bytes: %v", err)
+	pkg, err := base64.StdEncoding.DecodeString(sp.PackageBase64)
+	if err != nil {
+		t.Fatal(err)
 	}
 	if sp.ListingID != ID || sp.Version != "1.0.0" || sp.KeyID != modulekit.KeyID(pub) || sp.Digest != modulekit.Digest(pkg) {
 		t.Fatalf("signed file %+v", sp)
@@ -93,6 +85,28 @@ func TestBuildSignsWithModulekit(t *testing.T) {
 	if _, err := modulekit.Verify(pkg, sp.Digest, sp.Signature, sp.KeyID, trusted); err != nil {
 		t.Fatalf("verify: %v", err)
 	}
+	v, ms, err := modulekit.VerifyFile(signed, trusted)
+	if err != nil {
+		t.Fatalf("VerifyFile: %v", err)
+	}
+	installable, _, err := Installable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.ModuleID != ID || v.Signer.KeyID != modulekit.KeyID(pub) || len(ms) != countMigrations(installable) {
+		t.Fatalf("verified %+v, %d migrations", v, len(ms))
+	}
+	shipped, err := modulekit.ReadPackage(pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := shipped.Files[modulekit.PendingFile]; ok {
+		t.Fatal("the signed package ships pending.yaml")
+	}
+	if refs := modulekit.CheckAll(shipped.Files); len(refs) != 0 {
+		t.Fatalf("modulekit.Check of the signed files: %v", refs)
+	}
+
 	tampered := append([]byte(nil), pkg...)
 	tampered[len(tampered)/2] ^= 0xff
 	if _, err := modulekit.Verify(tampered, "", sp.Signature, sp.KeyID, trusted); err == nil {
@@ -106,39 +120,20 @@ func TestBuildSignsWithModulekit(t *testing.T) {
 		t.Fatal("an untrusted signer verified")
 	}
 
-	// The core's own install checks refuse the full package only for the pending fields.
-	_, _, err = modulekit.Check(files)
-	if err == nil || len(coreitems.Explain(err.Error())) == 0 {
-		t.Fatalf("modulekit.Check of the full package: %v, want a refusal for a pending field", err)
+	// modulekit.Build never signs the package with its pending list.
+	if _, err := modulekit.Build(priv, files); err == nil {
+		t.Fatal("modulekit.Build signed the package with its pending list")
 	}
+}
 
-	// Without them, Check over the files, CheckPackage over the bytes and VerifyFile over
-	// the signed file (the install checks after the signature) all pass.
-	stripped, err := coreitems.Strip(files, coreitems.Pending...)
-	if err != nil {
-		t.Fatal(err)
+func countMigrations(files map[string][]byte) int {
+	n := 0
+	for name := range files {
+		if strings.HasPrefix(name, "migrations/") {
+			n++
+		}
 	}
-	if _, _, err := modulekit.Check(stripped); err != nil {
-		t.Fatalf("Check: %v", err)
-	}
-	strippedPkg, err := Archive(stripPending(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := modulekit.CheckPackage(strippedPkg); err != nil {
-		t.Fatalf("CheckPackage: %v", err)
-	}
-	strippedSigned, err := Build(priv, stripPending(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	v, ms, err := modulekit.VerifyFile(strippedSigned, trusted)
-	if err != nil {
-		t.Fatalf("VerifyFile: %v", err)
-	}
-	if v.ModuleID != ID || v.Signer.KeyID != modulekit.KeyID(pub) || len(ms) != 3 {
-		t.Fatalf("verified %+v, %d migrations", v, len(ms))
-	}
+	return n
 }
 
 // The module's Go source passes the core's settings source check (AC-030): no
