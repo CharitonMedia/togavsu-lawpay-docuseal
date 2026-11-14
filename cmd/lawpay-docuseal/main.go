@@ -1,7 +1,7 @@
 // Command lawpay-docuseal runs the LawPay and DocuSeal module, or packages it.
 //
 //	lawpay-docuseal serve -core http://core:8080 -secrets /run/secrets -db-host postgres:5432 -db-name togavsu
-//	lawpay-docuseal package -key signing.key -out lawpay-docuseal.signed.json
+//	lawpay-docuseal package -key signing.key -out lawpay-docuseal.signed.json [-dir package]
 //
 // Secrets come from the Docker secrets the core hands the supervisor: togavsu_api_token,
 // togavsu_webhook_secret, togavsu_db_role, togavsu_db_password and togavsu_db_schema.
@@ -11,6 +11,7 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
 	"database/sql"
 	"flag"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 	"time"
 
 	lawpaydocuseal "github.com/CharitonMedia/togavsu-lawpay-docuseal"
+	"github.com/CharitonMedia/togavsu/pkg/modulekit"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -90,15 +92,48 @@ func serve(args []string) {
 
 func pack(args []string) {
 	fs := flag.NewFlagSet("package", flag.ExitOnError)
-	keyFile := fs.String("key", "", "file holding the Ed25519 signing key")
+	keyFile := fs.String("key", "", "file holding a base64 Ed25519 seed")
 	out := fs.String("out", "lawpay-docuseal.signed.json", "signed package file to write")
+	dir := fs.String("dir", "", "package directory to build instead of the embedded package")
 	_ = fs.Parse(args)
-	pkg, err := lawpaydocuseal.Build(lawpaydocuseal.PendingPackager{}, *keyFile, nil)
+	signed, pub, err := buildSigned(*keyFile, *dir)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := os.WriteFile(*out, pkg, 0o644); err != nil {
+	if err := os.WriteFile(*out, signed, 0o644); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("wrote %s\n", *out)
+	fmt.Printf("wrote %s, signed by key %s\npublic key (add it as a trusted signing key, public_key_pem):\n%s",
+		*out, modulekit.KeyID(pub), modulekit.PublicKeyPEM(pub))
+}
+
+// buildSigned reads the signing key and the package files (the embedded package, or dir
+// when set), refuses what the core's install check refuses, as togavsu-module package
+// does, and returns the signed package file and the signer's public key.
+func buildSigned(keyFile, dir string) ([]byte, ed25519.PublicKey, error) {
+	raw, err := os.ReadFile(keyFile)
+	if err != nil {
+		return nil, nil, err
+	}
+	priv, err := modulekit.ParseSeed(string(raw))
+	if err != nil {
+		return nil, nil, err
+	}
+	var files map[string][]byte
+	if dir != "" {
+		files, err = modulekit.ReadDir(dir)
+	} else {
+		files, err = lawpaydocuseal.Files()
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	if _, _, err := modulekit.Check(files); err != nil {
+		return nil, nil, fmt.Errorf("package refused (%s): %w", modulekit.Code(err), err)
+	}
+	signed, err := modulekit.Build(priv, files)
+	if err != nil {
+		return nil, nil, err
+	}
+	return signed, priv.Public().(ed25519.PublicKey), nil
 }

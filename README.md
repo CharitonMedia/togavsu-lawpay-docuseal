@@ -74,24 +74,39 @@ Agents use the module's own API under `/m/lawpay-docuseal/api/`, described by
 
 ```
 go vet ./...
-TOGAVSU_TEST_DATABASE_URL=postgres://user:pass@127.0.0.1:5432/dbname?sslmode=disable go test ./...
+TOGAVSU_TEST_DATABASE_URL=postgres://postgres:pass@127.0.0.1:5432/togavsu_lawpay_docuseal?sslmode=disable go test -race ./...
 docker build -t togavsu-lawpay-docuseal .
 ```
 
-The acceptance tests (`*_pg_test.go`, one per MOD-PAY criterion) run against an
-in-process fake core (`internal/fakecore`) and in-memory LawPay and DocuSeal fakes
-(`fake/`). No test opens a network connection to LawPay, DocuSeal or anything else, and
-every key is built at runtime. Without `TOGAVSU_TEST_DATABASE_URL` the Postgres tests skip
-locally and fail in CI.
+`TOGAVSU_TEST_DATABASE_URL` is a Postgres superuser URL. Without it the Postgres tests
+skip locally and fail in CI. Two suites use it:
+
+- `*_pg_test.go` at the root, one test per MOD-PAY criterion, against an in-process fake
+  core (`internal/fakecore`) in the URL's database.
+- `acceptance/`, the same criteria against the real core through the module kit's
+  `pkg/modulekit/coretest`, which creates and drops its own databases. Each test names
+  the core items it needs; while the pinned core (go.mod) doesn't build one, the test
+  skips with `needs CORE-NN`. `internal/coreitems` lists those items; drop an entry when
+  the pin moves to a core that builds it.
+
+LawPay and DocuSeal are in-memory fakes (`fake/`). No test opens a network connection to
+LawPay, DocuSeal or anything else, and every key is built at runtime.
 
 ## Packaging and signing
 
-`lawpay-docuseal package` builds the signed package the core installs. The package
-format, digest and signature belong to the core, and this module doesn't copy them, so
-packaging goes through the `Packager` interface in `module.go`. Until the core publishes a
-public packaging and signing package or CLI, the command uses `PendingPackager` and
-stops with a message saying so. Swapping in the core's packager is a one-line change in
-`cmd/lawpay-docuseal/main.go`.
+```
+lawpay-docuseal package -key signing.key -out lawpay-docuseal.signed.json [-dir package]
+```
+
+The key file holds a base64 Ed25519 seed. The command runs the core's install check
+(`modulekit.Check`) on the package, then archives and signs it with `pkg/modulekit`, so the
+format, digest and signature are the core's own. It prints the key id and public key to
+trust in the core. The image digest in the manifest stays a placeholder until the image
+is published.
+
+Core main refuses some of the spec's manifest fields and record links until module-core
+lands. `internal/coreitems.Pending` lists each one with its core item; the package tests
+check a copy without them and fail once the core accepts any of them.
 
 ## Core requirements
 

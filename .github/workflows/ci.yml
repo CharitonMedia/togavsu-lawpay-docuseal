@@ -21,6 +21,8 @@ jobs:
           --health-interval 5s
           --health-retries 20
     env:
+      # The superuser URL. The fake-core suite uses this database; the coretest suite
+      # (acceptance/) creates and drops its own databases from it.
       TOGAVSU_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/togavsu_lawpay_docuseal?sslmode=disable
     steps:
       - uses: actions/checkout@v4
@@ -33,5 +35,10 @@ jobs:
         run: go vet ./...
       - name: Test
         run: go test -race ./...
+      # The core CLI check of the shipped package dir returns when module-core lands:
+      #   go run github.com/CharitonMedia/togavsu/cmd/togavsu-module check package
+      # Until then core main refuses the spec's pending fields. The package tests run the
+      # same check on a copy without them (internal/coreitems.Pending) and fail once the
+      # core accepts any of them.
       - name: Image
         run: docker build -t togavsu-lawpay-docuseal:ci .
