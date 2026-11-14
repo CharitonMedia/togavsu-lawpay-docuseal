@@ -189,3 +189,13 @@ func RefundWebhook(tx adapters.Transaction) []byte {
 		"account_id": tx.AccountID, "amount": tx.AmountCents})
 	return b
 }
+
+// Update changes a stored transaction in place (a test that needs LawPay to disagree with
+// the module, such as a different account).
+func (f *LawPay) Update(id string, fn func(*adapters.Transaction)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	tx := f.txs[id]
+	fn(&tx)
+	f.txs[id] = tx
+}

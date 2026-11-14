@@ -78,7 +78,7 @@ func (s *Server) Transactions(ctx context.Context, v viewer, state, kind string)
 	if !v.staff() {
 		return nil, errNotFound
 	}
-	var out []Transaction
+	out := []Transaction{}
 	vis := s.visible(v)
 	if kind == "" || kind == "charge" {
 		where, args := `state <> 'intent'`, []any{}
@@ -151,7 +151,7 @@ func (s *Server) Exceptions(ctx context.Context, v viewer, kind, status string) 
 	}
 	defer rows.Close()
 	vis := s.visible(v)
-	var out []Exception
+	out := []Exception{}
 	for rows.Next() {
 		var e Exception
 		var resolved sql.NullTime

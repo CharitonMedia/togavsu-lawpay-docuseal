@@ -460,13 +460,19 @@ func (s *Server) reconciliationTab(ctx context.Context, v viewer, r *http.Reques
 	if !st.LawPayReady() {
 		return "", nil, errNoLawPay
 	}
-	ts, err := s.Transactions(ctx, v, r.FormValue("state"), r.FormValue("kind"))
+	// kind is a transaction kind (charge or refund) or, from a notification link, an
+	// exception kind.
+	txKind, exKind := r.FormValue("kind"), ""
+	if txKind != "" && txKind != "charge" && txKind != "refund" {
+		txKind, exKind = "", txKind
+	}
+	ts, err := s.Transactions(ctx, v, r.FormValue("state"), txKind)
 	if err != nil {
 		return "", nil, err
 	}
 	var es []Exception
 	if v.Has("admin", "attorney") {
-		if es, err = s.Exceptions(ctx, v, r.FormValue("kind"), ""); err != nil {
+		if es, err = s.Exceptions(ctx, v, exKind, ""); err != nil {
 			return "", nil, err
 		}
 	}
