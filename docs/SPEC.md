@@ -568,7 +568,7 @@ Each criterion runs against Postgres and the fake adapters with synthetic record
 
 Every test runs in the existing "Core tests" CI job (`go test ./...` against Postgres from `TOGAVSU_TEST_DATABASE_URL`). Postgres tests skip locally without it and fail in CI without it, as `testDSN` in `internal/modules/harness_pg_test.go` does.
 
-- `internal/modules/module_lawpay_docuseal_pg_test.go` (package `modules_test`, so it uses the existing harness in `internal/modules/harness_pg_test.go`: `newEnv`, `approveAll`, `contextFor`, `moduleDB`): before install the suite sets `e.rt.handlers["lawpay-docuseal"]` to a handler that, on its first request after each Deploy, reads `e.rt.last("lawpay-docuseal")` for the deployment's secrets and builds this module's handler with its own schema login from `e.moduleDB`, with `fake.LawPay`, `fake.DocuSeal` and a test clock injected through `Config`. It then builds and signs this package with `lawpaydocuseal.Build(priv, nil)` from a generated key, adds that key as trusted, installs through `POST /api/v1/modules` and approves every permission. The harness itself doesn't change (CORE-29). Core events reach the module's `/events`; provider webhooks reach it through `/hooks/lawpay-docuseal/...` on the core (CORE-07).
+- `internal/modules/module_lawpay_docuseal_pg_test.go` (package `modules_test`, so it uses the existing harness in `internal/modules/harness_pg_test.go`: `newEnv`, `approveAll`, `contextFor`, `moduleDB`): before install the suite sets `e.rt.handlers["lawpay-docuseal"]` to a handler that, on its first request after each Deploy, reads `e.rt.last("lawpay-docuseal")` for the deployment's secrets and builds this module's handler with its own schema login from `e.moduleDB`, with `fake.LawPay`, `fake.DocuSeal` and a test clock injected through `Config`. It then builds and signs this package with `lawpaydocuseal.Build(packager, keyPath, nil)`, where `packager` is the core's public packager (section 12), from a generated key, adds that key as trusted, installs through `POST /api/v1/modules` and approves every permission. The harness itself doesn't change (CORE-29). Core events reach the module's `/events`; provider webhooks reach it through `/hooks/lawpay-docuseal/...` on the core (CORE-07).
 - In the same file, one test per criterion, `TestPGModPay01` through `TestPGModPay53`, asserting core rows through the core API and module rows through the module's own database login.
 - Also in the same file: the package passes the install check (migrations, no duplicate record tables, RESTRICT keys, declared views and client tabs exist); uninstall with keep-data leaves the schema; hard-deleting a matter with module rows is refused and names the module.
 - `modules/lawpay-docuseal/webhook_test.go`, `status_test.go`, `money_test.go`: unit tests for candidate-field extraction, refund-first detection, status mapping, dedupe keys and cents parsing (a fractional or negative amount is refused).
@@ -580,7 +580,7 @@ Every test runs in the existing "Core tests" CI job (`go test ./...` against Pos
 modules/lawpay-docuseal/
   README.md                    what it does, settings, webhook URLs, build and sign steps
   Dockerfile                   as examples/matter-clock/Dockerfile; ENTRYPOINT ["/lawpay-docuseal", "serve"]
-  module.go                    Config, New, Handler, Build, Archive, SignFile (matter-clock's signing path, internal/marketplace)
+  module.go                    Files, Build and the Packager seam (section 12); Config, New and Handler are in server.go
   charges.go refunds.go reconcile.go lawpayhook.go
   agreements.go docusealhook.go views.go pages.go sweep.go
   core/client.go               typed client for the section 6 calls
@@ -606,3 +606,15 @@ Secrets come from the Docker secrets the core hands the supervisor (`togavsu_api
 - Building or editing the DocuSeal template; the firm's template uses the field names in MOD-PAY-37.
 - Signing any document other than the fee agreement.
 - QuickBooks or other ledger sync.
+
+## 12. Standalone build notes
+
+This repository builds the module on its own, outside the core tree, so a few things differ from sections 9 and 10.
+
+- **Layout.** A standalone Go module, `github.com/CharitonMedia/togavsu-lawpay-docuseal`, with the package at the root, the core client in `internal/coreapi`, and a fake core in `internal/fakecore`.
+- **Packaging and signing.** The package format, digest and signature belong to the core (`internal/marketplace`, `internal/modules`), which Go doesn't let another module import, and a copy would drift from what the core verifies. `module.go` defines a `Packager` interface instead; `PendingPackager` answers `ErrPackagerPending` until the core publishes a public packaging and signing package or CLI. `lawpay-docuseal package` uses it.
+- **Acceptance tests.** `TestPGModPay01` to `TestPGModPay53` run in this repository against `internal/fakecore`, an in-process core that serves the section 6 calls by their core operation ids, mirrors ids into `core.*` stub tables so the RESTRICT keys are real, delivers signed events with the grants, and forwards `/hooks/lawpay-docuseal/...` on POST only. The install check, signing, uninstall with keep-data and the core's own enforcement need the real core and run in the core lane (section 9).
+- **Additions to section 7.** Setting `lawpay_hosted_fields_url` (the hosted fields script, so its version is a setting). Exception kind `pending_ach_stale` (MOD-PAY-32). LawPay receipt verdict `received`, kept when a LawPay read fails so the sweep verifies it again. Columns `failure_message`, `source_event_id`, `transaction_id` and `amount_cents` where the code needs them. A setup tab with Test connection.
+- **Reading the criteria.** "No core call" in MOD-PAY-07 and MOD-PAY-13 means no core write and no initialization; the context token check and the settings read run on every request. The core agreement moves to signed once the signed PDF is filed, since `signed_file_id` names it. A declined signing leaves the core agreement at sent.
+- **Core webhook signatures.** The module accepts both `t=<unix>,v1=<hex>` over `t.body` (the core's Go delivery) and `sha256=<hex>` over the body with `X-Togavsu-Timestamp` (the contract), with a five-minute skew limit either way.
+- **Core gaps found.** The client's linked contact is read from the context token check (`contact_id`), which no CORE item names; the other way is `GET /api/v1/me/contact` with `profile:read`. Service calls (no viewer, no grant) are used for `getConflictCheck`, `createEvent` (the client signed and executed milestones), `markFileStatus` and `createNotification`; CORE-01 should list the first two. The background file grant is requested with source `importer`.
