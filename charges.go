@@ -76,12 +76,12 @@ func outOfRange(min, max int64) *appError {
 // dollars formats cents as $1,234.56 (negative as -$1,234.56).
 func dollars(c int64) string {
 	sign := ""
-	if c < 0 {
+	if c < zero {
 		sign, c = "-", -c
 	}
 	whole, frac := c/100, c%100
 	s := fmt.Sprintf("%d", whole)
-	for i := len(s) - 3; i > 0; i -= 3 {
+	for i := len(s) - thousandsGroup; i > zero; i -= thousandsGroup {
 		s = s[:i] + "," + s[i:]
 	}
 	return fmt.Sprintf("%s$%s.%02d", sign, s, frac)
@@ -120,7 +120,7 @@ func (s *Server) CreateIntent(ctx context.Context, v viewer, req PayRequest) (In
 				}
 				return Intent{}, err
 			}
-			if !found || !row.Payable || inv.BalanceDueCents <= 0 {
+			if !found || !row.Payable || inv.BalanceDueCents <= zero {
 				return Intent{}, fail(http.StatusConflict, "not_payable", msgNotPayable)
 			}
 			in.InvoiceID, in.MatterID, in.Destination, in.AmountCents, in.AmountFixed = inv.ID, inv.MatterID, row.Destination, inv.BalanceDueCents, true
@@ -207,14 +207,14 @@ func (s *Server) CreateIntent(ctx context.Context, v viewer, req PayRequest) (In
 		channel = "staff"
 		in.Purpose, in.MatterID, in.InvoiceID, in.Destination, in.AmountCents = "staff_charge", req.MatterID, req.InvoiceID, dest, req.AmountCents
 	}
-	if in.AmountCents <= 0 {
+	if in.AmountCents <= zero {
 		return Intent{}, fail(http.StatusConflict, "not_payable", msgNotPayable)
 	}
 	if in.Destination == "trust" && !s.trustReady(ctx) {
 		return Intent{}, &appError{Status: http.StatusConflict, Code: "not_configured", Message: msgTrustOff, Extra: map[string]any{"settings_link": settingsLink}}
 	}
 	in.ID = s.id()
-	in.ExpiresAt = s.now().Add(time.Duration(st.PayIntentMinutes) * time.Minute)
+	in.ExpiresAt = s.now().Add(time.Duration(st.PayIntentMinutes) * minute)
 	_, err = s.c.DB.ExecContext(ctx, `INSERT INTO lawpay_charges (id, matter_id, contact_id, invoice_id, replenishment_request_id, purpose, channel,
 		destination, amount_cents, state, initiated_by, expires_at, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'intent', $10, $11, $12, $12)`,
@@ -315,7 +315,7 @@ func (s *Server) Submit(ctx context.Context, v viewer, id, token string) (Charge
 	}
 	if c.Channel == "portal" {
 		var n int
-		since := s.now().Add(-time.Duration(st.AttemptWindowMinutes) * time.Minute)
+		since := s.now().Add(-time.Duration(st.AttemptWindowMinutes) * minute)
 		if err := s.c.DB.QueryRowContext(ctx, `SELECT count(*) FROM lawpay_charges WHERE contact_id = $1 AND channel = 'portal'
 			AND state NOT IN ('intent', 'expired') AND updated_at > $2`, c.ContactID, since).Scan(&n); err != nil {
 			return ChargeResult{}, err
@@ -328,7 +328,7 @@ func (s *Server) Submit(ctx context.Context, v viewer, id, token string) (Charge
 	if err != nil {
 		return ChargeResult{}, err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if n, _ := res.RowsAffected(); n == noRows {
 		c, _, err = s.chargeBy(ctx, "id", id)
 		if err != nil {
 			return ChargeResult{}, err

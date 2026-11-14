@@ -41,7 +41,7 @@ func (f *DocuSeal) Script(outcomes ...string) {
 
 func (f *DocuSeal) take(kind string) bool {
 	if len(f.next) > 0 && f.next[0] == kind {
-		f.next = f.next[1:]
+		f.next = f.next[one:]
 		return true
 	}
 	return false

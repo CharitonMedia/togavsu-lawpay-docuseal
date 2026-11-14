@@ -95,7 +95,7 @@ func cutLines(src string, cut []string) (string, bool) {
 	}
 	var out []string
 	found, inside := false, false
-	depth := 0
+	depth := zero
 	for _, l := range strings.Split(src, "\n") {
 		trimmed := strings.TrimSpace(l)
 		indent := len(l) - len(strings.TrimLeft(l, " "))

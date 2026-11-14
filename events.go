@@ -127,7 +127,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad body", http.StatusBadRequest)
 		return
 	}
-	skew := time.Duration(s.c.SkewSeconds) * time.Second
+	skew := time.Duration(s.c.SkewSeconds) * second
 	if err := VerifyCoreWebhook(s.c.WebhookSecret, r.Header.Get(SignatureHeader), r.Header.Get(TimestampHeader), body, s.now(), skew); err != nil {
 		http.Error(w, "bad signature", http.StatusUnauthorized)
 		return
@@ -144,7 +144,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not stored", http.StatusInternalServerError)
 		return
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if n, _ := res.RowsAffected(); n == noRows {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -213,7 +213,7 @@ func (s *Server) storeGrant(ctx context.Context, kind string, raw json.RawMessag
 	}
 	exp, err := time.Parse(time.RFC3339, g.ExpiresAt)
 	if err != nil {
-		exp = s.now().AddDate(0, 0, 1)
+		exp = s.now().AddDate(zero, zero, grantFallbackDays)
 	}
 	_, err = s.c.DB.ExecContext(ctx, `INSERT INTO processor_grants (initialization_id, kind, payment_id, refund_id, grant_credential, expires_at, received_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)

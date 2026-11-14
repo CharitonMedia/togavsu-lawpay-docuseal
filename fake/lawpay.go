@@ -55,7 +55,7 @@ func (f *LawPay) take(kinds ...string) string {
 	}
 	for _, k := range kinds {
 		if f.next[0] == k {
-			f.next = f.next[1:]
+			f.next = f.next[one:]
 			return k
 		}
 	}

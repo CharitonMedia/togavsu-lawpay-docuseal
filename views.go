@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/http"
 
 	"github.com/CharitonMedia/togavsu-lawpay-docuseal/internal/coreapi"
 )
@@ -19,7 +20,7 @@ const maxBody = 1 << 20
 func (s *Server) invoiceSent(ctx context.Context, invoiceID string) error {
 	inv, err := s.core.GetInvoice(ctx, coreapi.Service, invoiceID)
 	if err != nil {
-		if coreapi.Is(err, 404) {
+		if coreapi.Is(err, http.StatusNotFound) {
 			return nil // walled or gone: the books reader gets what a user outside the wall gets
 		}
 		return err
@@ -33,7 +34,7 @@ func (s *Server) invoiceSent(ctx context.Context, invoiceID string) error {
 		dest = "trust"
 	}
 	status := "open"
-	if inv.BalanceDueCents <= 0 {
+	if inv.BalanceDueCents <= zero {
 		status = "paid"
 	}
 	if _, err := s.c.DB.ExecContext(ctx, `INSERT INTO payable_invoices (invoice_id, matter_id, destination, status, opened_at)
@@ -51,7 +52,7 @@ func (s *Server) invoiceChanged(ctx context.Context, ev Event) error {
 	if ev.RecordType == "payment" || ev.Action != "invoice.updated" {
 		p, err := s.core.GetPayment(ctx, coreapi.Service, ev.RecordID)
 		if err != nil {
-			if coreapi.Is(err, 404) {
+			if coreapi.Is(err, http.StatusNotFound) {
 				return nil
 			}
 			return err
@@ -75,7 +76,7 @@ func (s *Server) syncInvoice(ctx context.Context, invoiceID string) error {
 	}
 	inv, err := s.core.GetInvoice(ctx, coreapi.Service, invoiceID)
 	if err != nil {
-		if coreapi.Is(err, 404) {
+		if coreapi.Is(err, http.StatusNotFound) {
 			return nil
 		}
 		return err
@@ -83,7 +84,7 @@ func (s *Server) syncInvoice(ctx context.Context, invoiceID string) error {
 	switch {
 	case inv.Status == "void":
 		_, err = s.c.DB.ExecContext(ctx, `UPDATE payable_invoices SET status = 'void', closed_at = $2 WHERE invoice_id = $1`, invoiceID, s.now())
-	case inv.BalanceDueCents <= 0:
+	case inv.BalanceDueCents <= zero:
 		_, err = s.c.DB.ExecContext(ctx, `UPDATE payable_invoices SET status = 'paid', closed_at = $2 WHERE invoice_id = $1`, invoiceID, s.now())
 	case status == "paid":
 		_, err = s.c.DB.ExecContext(ctx, `UPDATE payable_invoices SET status = 'open', closed_at = NULL, funded_cents = 0 WHERE invoice_id = $1`, invoiceID)

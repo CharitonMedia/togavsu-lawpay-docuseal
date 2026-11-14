@@ -5,7 +5,6 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/CharitonMedia/togavsu/pkg/modulekit"
@@ -142,31 +141,23 @@ func TestBuildSignsWithModulekit(t *testing.T) {
 	}
 }
 
-// CheckSource is the core's settings source check over the module's Go source. The
-// module must never read the environment, so any finding other than a numeric literal
-// fails. The literal findings skip: the check enumerates its allowed fixed computations
-// (a zero row count, a strconv base, a file mode, a UUID layout) by core file path and
-// function, so a module has no way to declare its own, and it reports every literal in
-// a comparison, return, call or constant. Remove the skip when the kit gives modules
-// that allowance.
+// The module's Go source passes the core's settings source check (AC-030): no
+// environment reads, and no numeric configuration literal outside fixed.go's named
+// rules and the module settings.
 func TestCheckSource(t *testing.T) {
-	err := modulekit.CheckSource(".")
-	if err == nil {
-		return
-	}
-	lines := strings.Split(err.Error(), "\n")
-	if lines[0] != "settings check failed:" {
+	if err := modulekit.CheckSource("."); err != nil {
 		t.Fatal(err)
 	}
-	var literals int
-	for _, l := range lines[1:] {
-		if strings.Contains(l, ": tunable number ") || strings.Contains(l, ": tunable duration ") {
-			literals++
-			continue
-		}
-		t.Errorf("settings check: %s", l)
+}
+
+// The sweep falls back to reconcile_interval_minutes' own manifest default when a
+// settings read fails, so that default must be a positive number of minutes.
+func TestSweepFallbackIsTheSettingDefault(t *testing.T) {
+	want := manifestDefaults(t)["reconcile_interval_minutes"]
+	if got := settingDefault("reconcile_interval_minutes"); got != want || atoi(got) <= zero {
+		t.Fatalf("settingDefault %q, manifest %q", got, want)
 	}
-	if !t.Failed() {
-		t.Skipf("needs a module fixed-site allowance in modulekit.CheckSource: %d numeric literal findings, no environment reads", literals)
+	if got := settingDefault("no_such_setting"); got != "" {
+		t.Fatalf("unknown key: %q", got)
 	}
 }

@@ -455,7 +455,7 @@ type Replenishment struct {
 
 // Amount is the requested amount from either read.
 func (r Replenishment) Amount() int64 {
-	if r.AmountCents > 0 {
+	if r.AmountCents > zero {
 		return r.AmountCents
 	}
 	return r.AmountRequestedCents
@@ -636,4 +636,4 @@ func (c *Client) GetBooksProfile(ctx context.Context) (BooksProfile, error) {
 }
 
 // Itoa formats an int64 for a query.
-func Itoa(v int64) string { return strconv.FormatInt(v, 10) }
+func Itoa(v int64) string { return strconv.FormatInt(v, decimalBase) }

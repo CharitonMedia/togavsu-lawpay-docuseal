@@ -31,17 +31,17 @@ import (
 )
 
 func main() {
-	log.SetFlags(0)
-	if len(os.Args) < 2 {
+	log.SetFlags(zero)
+	if len(os.Args) < flagsFrom {
 		log.Fatal("usage: lawpay-docuseal serve|package [flags]")
 	}
-	switch os.Args[1] {
+	switch os.Args[commandArg] {
 	case "serve":
-		serve(os.Args[2:])
+		serve(os.Args[flagsFrom:])
 	case "package":
-		pack(os.Args[2:])
+		pack(os.Args[flagsFrom:])
 	default:
-		log.Fatalf("unknown command %q", os.Args[1])
+		log.Fatalf("unknown command %q", os.Args[commandArg])
 	}
 }
 
@@ -100,7 +100,7 @@ func pack(args []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := os.WriteFile(*out, signed, 0o644); err != nil {
+	if err := os.WriteFile(*out, signed, signedFileMode); err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("wrote %s, signed by key %s\npublic key (add it as a trusted signing key, public_key_pem):\n%s",

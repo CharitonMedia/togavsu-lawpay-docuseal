@@ -199,7 +199,7 @@ func (s *Server) Reopen(ctx context.Context, v viewer, invoiceID string) error {
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if n, _ := res.RowsAffected(); n == noRows {
 		return fail(http.StatusConflict, "not_funded", "Online payment is already open on this invoice.")
 	}
 	return nil
@@ -229,7 +229,7 @@ func (s *Server) AwaitingCount(ctx context.Context, v viewer) (map[string]int, e
 		return nil, err
 	}
 	vis := s.visible(v)
-	out := map[string]int{"sent": 0, "client_signed": 0}
+	out := map[string]int{"sent": zero, "client_signed": zero}
 	for _, g := range gs {
 		if vis.ok(ctx, g.MatterID) {
 			out[g.State]++

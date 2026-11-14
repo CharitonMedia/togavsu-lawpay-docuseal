@@ -311,6 +311,6 @@ func (d *DocuSealHTTP) Archive(ctx context.Context, id string) error {
 
 // Template reads the template.
 func (d *DocuSealHTTP) Template(ctx context.Context, id int64) error {
-	_, err := d.raw(ctx, http.MethodGet, "/api/templates/"+strconv.FormatInt(id, 10), nil)
+	_, err := d.raw(ctx, http.MethodGet, "/api/templates/"+strconv.FormatInt(id, decimalBase), nil)
 	return err
 }

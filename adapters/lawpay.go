@@ -151,13 +151,13 @@ func (l *LawPayHTTP) do(ctx context.Context, method, path string, body any) (Tra
 
 // Charge charges AmountCents to AccountID with the hosted fields token.
 func (l *LawPayHTTP) Charge(ctx context.Context, r ChargeRequest) (Transaction, error) {
-	return l.do(ctx, http.MethodPost, "/charges", map[string]string{"amount": strconv.FormatInt(r.AmountCents, 10),
+	return l.do(ctx, http.MethodPost, "/charges", map[string]string{"amount": strconv.FormatInt(r.AmountCents, decimalBase),
 		"account_id": r.AccountID, "method": r.TokenID, "reference": r.Reference})
 }
 
 // Refund refunds cents of a charge.
 func (l *LawPayHTTP) Refund(ctx context.Context, chargeID string, cents int64) (Transaction, error) {
-	return l.do(ctx, http.MethodPost, "/charges/"+url.PathEscape(chargeID)+"/refund", map[string]string{"amount": strconv.FormatInt(cents, 10)})
+	return l.do(ctx, http.MethodPost, "/charges/"+url.PathEscape(chargeID)+"/refund", map[string]string{"amount": strconv.FormatInt(cents, decimalBase)})
 }
 
 // Transaction reads one transaction.

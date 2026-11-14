@@ -14,9 +14,6 @@ import (
 	"github.com/CharitonMedia/togavsu-lawpay-docuseal/adapters"
 )
 
-// malformedKeep is how much of an unparsable body a receipt keeps.
-const malformedKeep = 4000
-
 // Candidates are the fields a LawPay webhook body may carry, pulled from the places
 // Unified looks (U7). They only say which transaction to read: every decision uses the
 // live transaction, never the body.
@@ -123,7 +120,7 @@ func (s *Server) lawpayHook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not stored", http.StatusInternalServerError)
 		return
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if n, _ := res.RowsAffected(); n == noRows {
 		_, _ = s.c.DB.ExecContext(ctx, `UPDATE lawpay_webhook_receipts SET duplicate_count = duplicate_count + 1 WHERE dedupe_key = $1`, key)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "verdict": "duplicate"})
 		return

@@ -18,6 +18,8 @@ import (
 	"crypto/ed25519"
 	"embed"
 	"io/fs"
+	"strconv"
+	"strings"
 
 	"github.com/CharitonMedia/togavsu/pkg/modulekit"
 )
@@ -70,4 +72,28 @@ func Build(priv ed25519.PrivateKey, edit func(map[string][]byte)) ([]byte, error
 // package, its digest, an Ed25519 signature over the exact bytes and the key id.
 func SignFile(priv ed25519.PrivateKey, pkg []byte) ([]byte, error) {
 	return modulekit.SignFile(priv, pkg)
+}
+
+// settingDefault is the default the manifest declares for a setting key, or "" when it
+// declares none.
+func settingDefault(key string) string {
+	raw, err := packageFS.ReadFile("package/" + ManifestFile)
+	if err != nil {
+		return ""
+	}
+	in := false
+	for _, line := range strings.Split(string(raw), "\n") {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "- key: ") {
+			in = t == "- key: "+key
+			continue
+		}
+		if v, ok := strings.CutPrefix(t, "default: "); ok && in {
+			if u, err := strconv.Unquote(v); err == nil {
+				return u
+			}
+			return v
+		}
+	}
+	return ""
 }

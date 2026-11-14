@@ -80,7 +80,7 @@ func (s *Server) docusealHook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not stored", http.StatusInternalServerError)
 		return
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if n, _ := res.RowsAffected(); n == noRows {
 		_, _ = s.c.DB.ExecContext(ctx, `UPDATE docuseal_webhook_receipts SET duplicate_count = duplicate_count + 1 WHERE dedupe_key = $1`, ev.Key())
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "verdict": "duplicate"})
 		return
@@ -127,7 +127,7 @@ func (s *Server) applyDocuSeal(ctx context.Context, st Settings, ev DocuSealEven
 			if err != nil {
 				return "", "", err
 			}
-			if n, _ := res.RowsAffected(); n == 1 {
+			if n, _ := res.RowsAffected(); n == oneRow {
 				s.event(ctx, coreapi.Service, "fee_agreement.client_signed", "fee_agreement", g.FeeAgreementID, g.MatterID, "Client signed the fee agreement", true)
 			}
 			return "applied", g.ID, nil
@@ -144,7 +144,7 @@ func (s *Server) applyDocuSeal(ctx context.Context, st Settings, ev DocuSealEven
 		if err != nil {
 			return "", "", err
 		}
-		if n, _ := res.RowsAffected(); n == 1 {
+		if n, _ := res.RowsAffected(); n == oneRow {
 			s.openException(ctx, exception{Kind: "signing_error", MatterID: g.MatterID, SigningID: g.ID, TransactionID: g.SubmissionID,
 				Detail: "The client declined to sign the fee agreement."})
 		}
@@ -173,7 +173,7 @@ func (s *Server) applyDocuSeal(ctx context.Context, st Settings, ev DocuSealEven
 		if err != nil {
 			return "", "", err
 		}
-		if n, _ := res.RowsAffected(); n == 0 {
+		if n, _ := res.RowsAffected(); n == noRows {
 			return "ignored", g.ID, nil
 		}
 		return "applied", g.ID, s.execute(ctx, st, g, at)
@@ -278,7 +278,7 @@ func (s *Server) fileGrant(ctx context.Context, st Settings, matter string) (str
 		return "", err
 	}
 	// Wait no longer than one sweep interval; the sweep asks again.
-	deadline := s.c.Clock.Now().Add(time.Duration(st.ReconcileMinutes) * time.Minute)
+	deadline := s.c.Clock.Now().Add(time.Duration(st.ReconcileMinutes) * minute)
 	var cred string
 	err := s.grants.wait(ctx, key, deadline, func() (bool, error) {
 		cred = get()

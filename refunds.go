@@ -71,7 +71,7 @@ func (s *Server) TrustWarning(ctx context.Context, v viewer, p coreapi.Payment, 
 		return ""
 	}
 	after := b.MatterCents - amount
-	if after >= 0 {
+	if after >= zero {
 		return ""
 	}
 	return fmt.Sprintf("This leaves the client at %s in trust. It will post and raise a trust flag.", dollars(after))
@@ -94,7 +94,7 @@ func (s *Server) Refund(ctx context.Context, v viewer, req RefundRequest) (Refun
 	if err != nil {
 		return RefundResult{}, err
 	}
-	if req.AmountCents <= 0 || req.AmountCents > left {
+	if req.AmountCents <= zero || req.AmountCents > left {
 		return RefundResult{}, errExceeds
 	}
 	return s.runRefund(ctx, v, st, p, c, "", req.AmountCents, req.Reason, "firm")
@@ -125,7 +125,7 @@ func (s *Server) runRefund(ctx context.Context, v viewer, st Settings, p coreapi
 	if err != nil {
 		return RefundResult{}, err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if n, _ := res.RowsAffected(); n == noRows {
 		if _, err := s.c.DB.ExecContext(bg, `INSERT INTO lawpay_refunds (id, charge_id, payment_id, core_refund_id, amount_cents, reason, origin,
 			state, requested_by, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, 'core_pending', $8, $9, $9)`,
 			rowID, c.ID, p.ID, cr.ID, amount, reason, origin, v.UserID, s.now()); err != nil {
@@ -217,7 +217,7 @@ func (s *Server) DismissProposed(ctx context.Context, v viewer, id string) error
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if n, _ := res.RowsAffected(); n == noRows {
 		return errNotFound
 	}
 	return nil
@@ -258,7 +258,7 @@ func (s *Server) conflictDecided(ctx context.Context, ev Event) error {
 		return err
 	}
 	left := p.AmountCents - p.RefundedCents
-	if p.Source != ID || !found || c.Method != "card" || left <= 0 {
+	if p.Source != ID || !found || c.Method != "card" || left <= zero {
 		s.openException(ctx, exception{Kind: "manual_refund_needed", MatterID: matter, TransactionID: "payment:" + p.ID, AmountCents: left,
 			Detail: "The conflict check ended in no go. The matter's latest payment wasn't a LawPay card charge, so refund it by hand."})
 		return nil
@@ -267,7 +267,7 @@ func (s *Server) conflictDecided(ctx context.Context, ev Event) error {
 	if err := s.c.DB.QueryRowContext(ctx, `SELECT count(*) FROM lawpay_refunds WHERE payment_id = $1 AND origin = 'no_go' AND state <> 'dismissed'`, p.ID).Scan(&open); err != nil {
 		return err
 	}
-	if open > 0 {
+	if open > zero {
 		return nil
 	}
 	id := s.id()
@@ -277,7 +277,7 @@ func (s *Server) conflictDecided(ctx context.Context, ev Event) error {
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if n, _ := res.RowsAffected(); n == noRows {
 		return nil
 	}
 	if err := s.core.Notify(ctx, coreapi.Service, "refund_proposed", "A consult fee refund is ready to issue",
@@ -351,7 +351,7 @@ func (s *Server) resolve(ctx context.Context, id, by, note string) error {
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if n, _ := res.RowsAffected(); n == noRows {
 		return errNotFound
 	}
 	return nil

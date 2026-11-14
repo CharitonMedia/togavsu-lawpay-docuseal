@@ -208,11 +208,10 @@ func StubSchema(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	defer conn.Close()
-	const lockKey = 7340811
-	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, lockKey); err != nil {
+	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, stubLockKey); err != nil {
 		return err
 	}
-	defer conn.ExecContext(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1)`, lockKey)
+	defer conn.ExecContext(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1)`, stubLockKey)
 	if _, err := conn.ExecContext(ctx, `CREATE SCHEMA IF NOT EXISTS core`); err != nil {
 		return err
 	}
@@ -545,7 +544,7 @@ func (c *Core) HoldGrants(hold bool) {
 func (c *Core) CallCount(op string) int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	n := 0
+	n := zero
 	for _, call := range c.Calls {
 		if op == "" || call.Op == op {
 			n++
@@ -559,7 +558,7 @@ func (c *Core) CallCount(op string) int {
 func (c *Core) Writes() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	n := 0
+	n := zero
 	for _, call := range c.Calls {
 		if call.Method != http.MethodGet && call.Op != "verifyContextToken" {
 			n++
@@ -592,7 +591,7 @@ func (c *Core) Snapshot() ([]Notification, []Mail, []Event) {
 
 // Sign signs a delivery body as the core's Go delivery does.
 func Sign(secret string, at time.Time, body []byte) string {
-	ts := strconv.FormatInt(at.Unix(), 10)
+	ts := strconv.FormatInt(at.Unix(), decimalBase)
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(ts + "."))
 	mac.Write(body)
@@ -612,7 +611,7 @@ func (c *Core) Emit(action, recordType, recordID, matter string, extra map[strin
 	walled := matter != "" && c.walls[matter] != nil
 	c.mu.Unlock()
 	if walled {
-		return 0
+		return zero
 	}
 	return c.deliver(d)
 }
@@ -645,7 +644,7 @@ func (c *Core) deliver(d delivery) int {
 	}
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return 0
+		return zero
 	}
 	resp.Body.Close()
 	c.mu.Lock()
@@ -706,7 +705,7 @@ func (c *Core) serve(w http.ResponseWriter, r *http.Request) {
 	if err == nil && route.fn == nil {
 		err = errNotFound
 	}
-	if err == nil && c.failNext[route.op] > 0 {
+	if err == nil && c.failNext[route.op] > zero {
 		c.failNext[route.op]--
 		err = perr(http.StatusInternalServerError, "internal", "injected failure")
 	}
@@ -768,7 +767,7 @@ func (c *Core) caller(r *http.Request) (caller, error) {
 func (c *Core) hook(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/hooks/"), "/")
 	paths := map[string]string{"lawpay": "/hooks/lawpay", "docuseal": "/hooks/docuseal"}
-	if len(parts) != 2 || parts[0] != ModuleID || paths[parts[1]] == "" {
+	if len(parts) != hookParts || parts[hookModule] != ModuleID || paths[parts[hookID]] == "" {
 		http.NotFound(w, r)
 		return
 	}
@@ -778,7 +777,7 @@ func (c *Core) hook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body, _ := io.ReadAll(r.Body)
-	target := c.ModuleURL + paths[parts[1]]
+	target := c.ModuleURL + paths[parts[hookID]]
 	if r.URL.RawQuery != "" {
 		target += "?" + r.URL.RawQuery
 	}
@@ -791,7 +790,7 @@ func (c *Core) hook(w http.ResponseWriter, r *http.Request) {
 		req.Header[k] = v
 	}
 	req.Header.Set("X-Togavsu-Module", ModuleID)
-	req.Header.Set("X-Togavsu-Inbound-Hook", parts[1])
+	req.Header.Set("X-Togavsu-Inbound-Hook", parts[hookID])
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
 		http.Error(w, "module unavailable", http.StatusBadGateway)
