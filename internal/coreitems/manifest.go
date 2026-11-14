@@ -10,19 +10,12 @@ const manifestFile = "togavsu-module.yaml"
 // Field is a part of the package, from the module spec, that the pinned core refuses
 // until its core item lands. In the manifest, Cut lists trimmed lines that carry the
 // field; each goes with the lines indented under it. In a migration, Cut lists text that
-// is removed where it appears, or replaced as replacement says.
+// is removed where it appears.
 type Field struct {
 	Item string
 	Name string
 	File string
 	Cut  []string
-}
-
-// replacement is what a migration cut becomes in the stripped copy; text not listed
-// here is removed.
-var replacement = map[string]string{
-	"extract(epoch FROM g.sent_at)":    "date_part('epoch', g.sent_at)",
-	"extract(epoch FROM g.expires_at)": "date_part('epoch', g.expires_at)",
 }
 
 // Pending is every such field in the package directory, in one place. The package tests
@@ -46,15 +39,7 @@ var Pending = []Field{
 		[]string{" REFERENCES core.payment_refunds (id) ON DELETE RESTRICT"}},
 	{"CORE-22", "signing tables reference core.fee_agreements", "migrations/0002_docuseal.sql",
 		[]string{" REFERENCES core.fee_agreements (id) ON DELETE RESTRICT"}},
-	// Not a core item: the core's view check takes the FROM inside extract(epoch FROM
-	// g.sent_at) for a relation and refuses g.sent_at as outside the module's schema.
-	// The copy reads the same values with date_part until the check is fixed.
-	{KitExtract, "signature_requests view reads extract(epoch FROM ...)", "migrations/0003_portal.sql",
-		[]string{"extract(epoch FROM g.sent_at)", "extract(epoch FROM g.expires_at)"}},
 }
-
-// KitExtract names the core view check defect that refuses extract(epoch FROM col).
-const KitExtract = "KIT-view-extract"
 
 // Strip returns a copy of the package files without the given fields. It fails when a
 // field is not in its file, so an entry cannot go stale unnoticed.
@@ -76,7 +61,7 @@ func Strip(files map[string][]byte, fields ...Field) (map[string][]byte, error) 
 			got = string(src)
 			for _, c := range f.Cut {
 				found = found || strings.Contains(got, c)
-				got = strings.ReplaceAll(got, c, replacement[c])
+				got = strings.ReplaceAll(got, c, "")
 			}
 		}
 		if !found {

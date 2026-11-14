@@ -30,7 +30,6 @@ var Unbuilt = map[string]string{
 	// No item in CORE-CHANGES.md emits this event; the core's conflict decision is an
 	// attorney-only audit change with action conflict.decided.
 	"conflict_check.decided": "a core conflict_check.decided event with the check's decision",
-	KitExtract:               "a core view check that reads extract(epoch FROM col) as an expression, not a relation",
 }
 
 // Install is what the package itself needs before the core installs and deploys it: the
@@ -70,7 +69,6 @@ var gaps = []struct {
 	{"unknown core record payment_refund", []string{"CORE-22"}},
 	{"core.fee_agreements", []string{"CORE-22"}},
 	{"core.payment_refunds", []string{"CORE-22", "CORE-24"}},
-	{"view signature_requests reads g.", []string{KitExtract}},
 	// books:read, mail:send and client_access:read are not in the core's scope catalog.
 	{"unknown scope", []string{"CORE-02", "CORE-04", "CORE-14"}},
 }
