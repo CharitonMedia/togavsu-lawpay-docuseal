@@ -1,0 +1,372 @@
+# LawPay and DocuSeal: card and ACH payments into operating and trust, refunds,
+# reconciliation, and DocuSeal e-signature for fee agreements. Fields tagged CORE-nn are
+# the module API update's manifest fields (docs/modules/CORE-CHANGES.md in core).
+id: lawpay-docuseal
+name: LawPay and DocuSeal
+version: "1.0.0"
+author: Chariton Media
+homepage: https://github.com/CharitonMedia/togavsu-lawpay-docuseal
+license: Same as Togavsu
+price: Free
+container:
+  image: ghcr.io/charitonmedia/togavsu-lawpay-docuseal
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  port: 8080
+  events: /events
+permissions:
+  - scope: matters:read
+    reason: Read the matter, client party, responsible attorney, billing type and fee agreement.
+  - scope: matters:write
+    reason: Save fee agreement drafts and status, and fill an empty billing type from the fee type.
+  - scope: contacts:read
+    reason: Read the client's name, email, phone and address to prefill the DocuSeal form.
+  - scope: invoices:read
+    reason: Show the invoice balance on a pay page and keep pay links current.
+  - scope: payments:read
+    reason: Show LawPay payments and match them to LawPay records.
+  - scope: payments:write
+    reason: Record LawPay charges as core payments and post refunds.
+  - scope: trust:read
+    reason: Show trust balances and warn before a refund takes a client below zero.
+  - scope: trust:write
+    reason: Record charges that landed in the LawPay trust account as trust deposits.
+  - scope: trust:withdraw
+    reason: Post refunds of trust deposits. The core still requires an attorney or admin.
+  - scope: files:read
+    reason: Link the signed fee agreement on the matter.
+  - scope: files:write
+    reason: Store the signed fee agreement PDF as a file record on the matter.
+  - scope: events:read
+    reason: Receive invoice, payment, fee agreement, conflict and replenishment events and grants.
+  - scope: events:write
+    reason: Add fee agreement milestones to the case timeline.
+  - scope: notifications:write
+    reason: Tell attorneys and admins about payment and signing exceptions.
+  - scope: conflicts:read
+    reason: Propose the consult fee refund when a conflict check ends in no go.
+  - scope: mail:send
+    reason: Email the client the signing link and void notices through system mail.
+  # CORE-02
+  - scope: books:read
+    reason: Read invoice balances, payments and trust balances for the sweep and for events, when no one is signed in.
+  # CORE-14
+  - scope: client_access:read
+    reason: Check that the client can sign in to the portal before sending a fee agreement.
+# CORE-23
+payment_processor:
+  destinations: [operating, trust]
+# CORE-07
+inbound_webhooks:
+  - id: lawpay
+    path: /hooks/lawpay
+  - id: docuseal
+    path: /hooks/docuseal
+# CORE-03
+notifications:
+  - kind: exception
+    label: LawPay and signing exceptions
+    default_channels: [in_app, email]
+  - kind: refund_proposed
+    label: Proposed refunds
+    default_channels: [in_app, email]
+widgets:
+  - id: awaiting-signature
+    title: Fee agreements awaiting signature
+    path: /widget/awaiting-signature
+    size:
+      w: 4
+      h: 2
+    target:
+      tab: agreements
+      params: [state]
+  - id: exceptions
+    title: Payment and signing exceptions
+    path: /widget/exceptions
+    size:
+      w: 4
+      h: 2
+    target:
+      tab: reconciliation
+      params: [kind]
+    roles: [admin, attorney]
+tabs:
+  - id: agreements
+    title: Fee agreements
+    placement: home
+    path: /tab/agreements
+    params: [state]
+  - id: reconciliation
+    title: LawPay reconciliation
+    placement: home
+    path: /tab/reconciliation
+    params: [state, kind]
+  - id: setup
+    title: LawPay and DocuSeal setup
+    placement: home
+    path: /tab/setup
+  - id: matter
+    title: Payments and signing
+    placement: matter
+    path: /matter
+  # CORE-10: client tabs, kept out of the portal nav
+  - id: pay
+    title: Pay
+    placement: client
+    path: /client/pay
+    params: [purpose, invoice_id, matter_id, replenishment_request_id, return_to]
+    nav: false
+  - id: sign
+    title: Sign
+    placement: client
+    path: /client/sign
+    params: [signing_request_id, return_to]
+    nav: false
+matter_items:
+  - id: fee-agreement
+    kind: panel
+    title: Fee agreement
+    path: /matter/fee-agreement
+  - id: send-fee-agreement
+    kind: action
+    title: Send fee agreement
+    path: /matter/send
+  - id: take-payment
+    kind: action
+    title: Take payment
+    path: /matter/charge
+  - id: refund
+    kind: action
+    title: Refund
+    path: /matter/refund
+sidebar:
+  - id: lawpay
+    title: LawPay
+    path: /tab/reconciliation
+    # CORE-08
+    section: money
+    icon: payment
+    order: 400
+help:
+  heading: LawPay and DocuSeal
+  pages:
+    - id: overview
+      title: LawPay and DocuSeal
+      keywords: [lawpay, docuseal, card, ach, settings, webhook]
+      covers: [lawpay-docuseal.awaiting-signature, lawpay-docuseal.exceptions, /modules/lawpay-docuseal/tabs/setup]
+      body: |
+        LawPay and DocuSeal takes card and ACH payments, issues refunds and sends fee
+        agreements for signature. Every payment and refund is a core record, so the
+        trust ledger, invoices and reports always agree with LawPay.
+
+        **Setting it up** (Administrative > Modules and marketplace > LawPay and DocuSeal):
+
+        1. Enter the LawPay secret key, public key, operating and trust account ids, and
+           pick the Togavsu trust account that LawPay trust deposits land in.
+        2. Enter the DocuSeal address, API key, webhook token, fee agreement template id
+           and the firm signer's name and email.
+        3. Open **Money > LawPay**, then the **LawPay and DocuSeal setup** tab. Copy the two
+           webhook addresses into LawPay and DocuSeal, and press **Test connection** for
+           each service.
+
+        Until every required setting is filled, pay pages, Take payment, Refund and Send
+        say the service isn't set up and link back to the settings.
+
+        **Widgets:** *Fee agreements awaiting signature* counts sent and client-signed
+        agreements on matters you can see. *Payment and signing exceptions* (attorneys and
+        admins) lists what needs a person; click a line to open the reconciliation tab.
+    - id: take-payment
+      title: Taking a payment or a refund
+      keywords: [charge, trust deposit, refund, partial]
+      covers: [/modules/lawpay-docuseal/matter-items/take-payment, /modules/lawpay-docuseal/matter-items/refund]
+      body: |
+        **Take payment** (matter screen > Actions > Take payment): pick operating or trust,
+        card or bank transfer (ACH), enter the amount and, for operating, an optional
+        invoice. The client's card or bank details go into LawPay's own fields; Togavsu
+        never sees them. A card payment is recorded at once. An ACH payment is recorded as
+        pending and completes when LawPay settles it.
+
+        **Refund** (matter screen > Actions > Refund, attorneys and admins only): pick a
+        LawPay payment and enter all or part of it. A refund can't be more than what is
+        left on the payment. A trust refund that takes the client below zero shows the
+        resulting balance, still posts, and raises a trust flag. A check refund stays a
+        core trust refund.
+    - id: fee-agreement
+      title: Sending a fee agreement
+      keywords: [fee agreement, docuseal, sign, void, resend]
+      covers: [/modules/lawpay-docuseal/matter-items/fee-agreement, /modules/lawpay-docuseal/tabs/agreements]
+      body: |
+        **Fee agreement** (matter screen > Fee agreement panel): choose the fee type, enter
+        the amount and the services description (up to 4,000 characters), the case number
+        and whether it's a new case, then **Save draft**. A closed matter's panel is read
+        only.
+
+        **Send fee agreement** needs the client's email, phone and full mailing address and
+        active portal access. The unsigned agreement is filed on the matter and shared with
+        the client, and the client gets an email with a link to sign in the portal. The
+        client signs first; the firm then countersigns in DocuSeal, and the signed PDF is
+        filed on the matter marked executed.
+
+        If the invite email fails, the panel says **Use Resend signing link**. **Void**
+        stops a sent agreement and tells the client.
+
+        **Fee agreements** tab (home screen): every agreement by state.
+    - id: reconciliation
+      title: LawPay reconciliation
+      keywords: [reconcile, exception, unknown transaction]
+      covers: [/modules/lawpay-docuseal/tabs/reconciliation]
+      body: |
+        **Money > LawPay** opens the reconciliation tab. It lists LawPay transactions with
+        the matter, amount, destination, state and a link to the core payment. Filter by
+        state and kind.
+
+        **Exceptions** are what needs a person: a charge recorded late, a refund made in
+        the LawPay dashboard (**Post refund**), an unknown transaction (pick the matter and
+        contact, then **Record**), an account or amount mismatch, a signed PDF that
+        couldn't be filed, or a signing error. Every open exception has **Resolve**, which
+        needs a note.
+events:
+  - invoice.sent
+  - invoice.updated
+  - invoice.voided
+  - payment.completed
+  - payment.reversed
+  - payment.processor_authorized
+  - payment.refund_authorized
+  - fee_agreement.updated
+  - conflict_check.decided
+  - trust.replenishment_requested
+  - file.background_authorized
+data:
+  extends:
+    - name: agreement_details
+      record: fee_agreement
+      table: agreement_details
+      key: fee_agreement_id
+      columns:
+        - name: case_number
+        - name: new_case
+  views:
+    - name: invoice_payability
+      record: invoice
+      key: invoice_id
+      columns:
+        - name: invoice_id
+        - name: payable
+        - name: unpayable_reason
+        - name: in_progress_cents
+    - name: matter_payability
+      record: matter
+      key: matter_id
+      columns:
+        - name: matter_id
+        - name: trust_deposits_enabled
+        - name: minimum_deposit_cents
+    - name: signature_requests
+      record: file
+      key: file_id
+      columns:
+        - name: file_id
+        - name: signing_request_id
+        - name: matter_id
+        - name: signer_contact_id
+        - name: status
+        - name: sent_at
+        - name: expires_at
+settings:
+  - key: lawpay_secret_key
+    label: LawPay secret key
+    type: string
+    required: true
+    secret: true
+  - key: lawpay_public_key
+    label: LawPay public key for hosted fields
+    type: string
+    required: true
+  - key: lawpay_operating_account_id
+    label: LawPay operating account id
+    type: string
+    required: true
+  - key: lawpay_trust_account_id
+    label: LawPay trust account id
+    type: string
+    required: true
+  - key: core_trust_account_id
+    label: Togavsu trust account id for LawPay trust deposits
+    type: string
+    required: true
+  - key: lawpay_api_base
+    label: LawPay API address
+    type: string
+    default: "https://api.8am.com/v1"
+  - key: lawpay_webhook_token
+    label: LawPay webhook URL token
+    type: string
+    required: true
+    secret: true
+  - key: min_charge_cents
+    label: Smallest charge in cents
+    type: int
+    default: "100"
+  - key: max_charge_cents
+    label: Largest charge in cents
+    type: int
+    default: "5000000"
+  - key: invoice_pay_destination
+    label: Where a client's invoice payment lands
+    type: enum
+    options: [trust, operating]
+    default: trust
+  - key: pay_intent_minutes
+    label: Minutes a pay page stays valid
+    type: int
+    default: "30"
+  - key: pay_attempts_per_window
+    label: Card attempts allowed per client per window
+    type: int
+    default: "3"
+  - key: pay_attempt_window_minutes
+    label: Attempt window in minutes
+    type: int
+    default: "10"
+  - key: reconcile_interval_minutes
+    label: Minutes between reconciliation sweeps
+    type: int
+    default: "60"
+  - key: retry_limit
+    label: Automatic retries before an exception
+    type: int
+    default: "3"
+  - key: pending_check_days
+    label: Days to keep checking a pending ACH charge
+    type: int
+    default: "14"
+  - key: docuseal_base_url
+    label: DocuSeal address
+    type: string
+    required: true
+  - key: docuseal_api_key
+    label: DocuSeal API key
+    type: string
+    required: true
+    secret: true
+  - key: docuseal_webhook_token
+    label: DocuSeal X-Webhook-Token value
+    type: string
+    required: true
+    secret: true
+  - key: docuseal_template_id
+    label: DocuSeal fee agreement template id
+    type: int
+    required: true
+  - key: firm_signer_name
+    label: Firm signer name on the agreement
+    type: string
+    required: true
+  - key: firm_signer_email
+    label: Firm signer email for DocuSeal
+    type: string
+    required: true
+  - key: signing_expire_days
+    label: Days before an unsigned fee agreement expires (0 never)
+    type: int
+    default: "0"
