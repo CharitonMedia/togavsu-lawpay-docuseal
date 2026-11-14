@@ -1,0 +1,1028 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "LawPay and DocuSeal module API",
+  "version": "1.0.0",
+  "description": "Agent API of the lawpay-docuseal Togavsu module, served by the core under /m/lawpay-docuseal/api/. Every call carries the viewer's X-Togavsu-Context-Token, and the module acts only as that viewer can. Amounts are integer cents. Card and bank details never pass through this API: a payment token comes from LawPay hosted fields."
+ },
+ "servers": [
+  {
+   "url": "/m/lawpay-docuseal"
+  }
+ ],
+ "security": [
+  {
+   "contextToken": []
+  }
+ ],
+ "paths": {
+  "/api/pay-intents": {
+   "post": {
+    "operationId": "createPayIntent",
+    "summary": "Start a pay intent with a server-decided amount",
+    "responses": {
+     "201": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Intent"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "purpose": {
+          "type": "string",
+          "enum": [
+           "invoice_pay",
+           "trust_deposit",
+           "staff_charge"
+          ]
+         },
+         "invoice_id": {
+          "type": "string"
+         },
+         "matter_id": {
+          "type": "string"
+         },
+         "replenishment_request_id": {
+          "type": "string"
+         },
+         "contact_id": {
+          "type": "string"
+         },
+         "destination": {
+          "type": "string",
+          "enum": [
+           "operating",
+           "trust"
+          ]
+         },
+         "amount_cents": {
+          "type": "integer",
+          "format": "int64"
+         }
+        },
+        "required": []
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/pay-intents/{id}/submit": {
+   "post": {
+    "operationId": "submitPayIntent",
+    "summary": "Charge a pay intent once with a hosted fields token",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ChargeResult"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "token": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "token"
+        ]
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/refunds": {
+   "post": {
+    "operationId": "refundPayment",
+    "summary": "Refund a LawPay payment (attorney or admin)",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RefundResult"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "payment_id": {
+          "type": "string"
+         },
+         "amount_cents": {
+          "type": "integer",
+          "format": "int64"
+         },
+         "reason": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "payment_id",
+         "amount_cents"
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/refunds/preview": {
+   "get": {
+    "operationId": "previewRefund",
+    "summary": "What is left to refund and the trust below-zero warning",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "parameters": [
+     {
+      "name": "payment_id",
+      "in": "query",
+      "required": true,
+      "description": "Core payment id",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "amount_cents",
+      "in": "query",
+      "required": true,
+      "description": "Amount in cents",
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ]
+   }
+  },
+  "/api/refunds/{id}/issue": {
+   "post": {
+    "operationId": "issueProposedRefund",
+    "summary": "Issue a proposed no-go refund",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RefundResult"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/refunds/{id}/dismiss": {
+   "post": {
+    "operationId": "dismissProposedRefund",
+    "summary": "Dismiss a proposed refund",
+    "responses": {
+     "204": {
+      "description": "OK"
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/transactions": {
+   "get": {
+    "operationId": "listTransactions",
+    "summary": "LawPay charges and refunds the viewer can see",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "parameters": [
+     {
+      "name": "state",
+      "in": "query",
+      "required": false,
+      "description": "Charge or refund state",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "kind",
+      "in": "query",
+      "required": false,
+      "description": "charge or refund",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/exceptions": {
+   "get": {
+    "operationId": "listExceptions",
+    "summary": "Exceptions (attorney or admin)",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "parameters": [
+     {
+      "name": "kind",
+      "in": "query",
+      "required": false,
+      "description": "Exception kind",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "status",
+      "in": "query",
+      "required": false,
+      "description": "open (default) or resolved",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/exceptions/{id}/resolve": {
+   "post": {
+    "operationId": "resolveException",
+    "summary": "Resolve an exception with a required note",
+    "responses": {
+     "204": {
+      "description": "OK"
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "note": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "note"
+        ]
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/exceptions/{id}/record": {
+   "post": {
+    "operationId": "recordUnknownTransaction",
+    "summary": "Record a verified unknown LawPay charge on a matter and contact",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ChargeResult"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "matter_id": {
+          "type": "string"
+         },
+         "contact_id": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "matter_id",
+         "contact_id"
+        ]
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/exceptions/{id}/post-refund": {
+   "post": {
+    "operationId": "postExternalRefund",
+    "summary": "Post a verified LawPay dashboard refund",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RefundResult"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "note": {
+          "type": "string"
+         }
+        },
+        "required": []
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/invoices/{id}/reopen": {
+   "post": {
+    "operationId": "reopenOnlinePayment",
+    "summary": "Reopen online payment on an invoice funded through trust",
+    "responses": {
+     "204": {
+      "description": "OK"
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/matters/{id}/deposits": {
+   "post": {
+    "operationId": "setClientDeposits",
+    "summary": "Turn client trust deposits on a matter on or off",
+    "responses": {
+     "204": {
+      "description": "OK"
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "enabled": {
+          "type": "boolean"
+         }
+        },
+        "required": [
+         "enabled"
+        ]
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/agreements": {
+   "get": {
+    "operationId": "listSignings",
+    "summary": "Fee agreement signings the viewer can see",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "parameters": [
+     {
+      "name": "matter_id",
+      "in": "query",
+      "required": false,
+      "description": "Core matter id",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "state",
+      "in": "query",
+      "required": false,
+      "description": "Signing state",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   },
+   "post": {
+    "operationId": "saveFeeAgreementDraft",
+    "summary": "Create or change a fee agreement draft",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "type": "string"
+         },
+         "matter_id": {
+          "type": "string"
+         },
+         "fee_type": {
+          "type": "string",
+          "enum": [
+           "flat",
+           "hourly",
+           "mixed",
+           "contingency",
+           "pro_bono"
+          ]
+         },
+         "amount_cents": {
+          "type": "integer",
+          "format": "int64"
+         },
+         "services_description": {
+          "type": "string"
+         },
+         "case_number": {
+          "type": "string"
+         },
+         "new_case": {
+          "type": "boolean"
+         }
+        },
+        "required": [
+         "fee_type",
+         "services_description"
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/agreements/{id}/send": {
+   "post": {
+    "operationId": "sendFeeAgreement",
+    "summary": "Send a draft for signature through DocuSeal",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Signing"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/signings/{id}": {
+   "get": {
+    "operationId": "getSigning",
+    "summary": "Read a signing",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Signing"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/signings/{id}/resend": {
+   "post": {
+    "operationId": "resendSigningLink",
+    "summary": "Mail the same signing link again",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Signing"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/signings/{id}/void": {
+   "post": {
+    "operationId": "voidSigning",
+    "summary": "Void a sent fee agreement with a reason",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Signing"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "reason": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "reason"
+        ]
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/widgets/awaiting-signature": {
+   "get": {
+    "operationId": "countAwaitingSignature",
+    "summary": "Agreements awaiting a signature, by state",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/api/setup/test": {
+   "post": {
+    "operationId": "testConnection",
+    "summary": "Check the LawPay, trust and DocuSeal settings (admin)",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      }
+     },
+     "default": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "securitySchemes": {
+   "contextToken": {
+    "type": "apiKey",
+    "in": "header",
+    "name": "X-Togavsu-Context-Token"
+   }
+  },
+  "responses": {
+   "Error": {
+    "description": "Refused",
+    "content": {
+     "application/json": {
+      "schema": {
+       "$ref": "#/components/schemas/Error"
+      }
+     }
+    }
+   }
+  },
+  "schemas": {
+   "Error": {
+    "type": "object",
+    "properties": {
+     "code": {
+      "type": "string"
+     },
+     "message": {
+      "type": "string"
+     },
+     "fields": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "settings_link": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "code",
+     "message"
+    ]
+   },
+   "Intent": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "purpose": {
+      "type": "string"
+     },
+     "matter_id": {
+      "type": "string"
+     },
+     "invoice_id": {
+      "type": "string"
+     },
+     "destination": {
+      "type": "string"
+     },
+     "amount_cents": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "amount_fixed": {
+      "type": "boolean"
+     },
+     "expires_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "public_key": {
+      "type": "string"
+     }
+    },
+    "required": []
+   },
+   "ChargeResult": {
+    "type": "object",
+    "properties": {
+     "charge_id": {
+      "type": "string"
+     },
+     "state": {
+      "type": "string"
+     },
+     "lawpay_charge_id": {
+      "type": "string"
+     },
+     "payment_id": {
+      "type": "string"
+     },
+     "code": {
+      "type": "string"
+     },
+     "message": {
+      "type": "string"
+     }
+    },
+    "required": []
+   },
+   "RefundResult": {
+    "type": "object",
+    "properties": {
+     "refund_id": {
+      "type": "string"
+     },
+     "state": {
+      "type": "string"
+     },
+     "core_refund_id": {
+      "type": "string"
+     },
+     "lawpay_refund_id": {
+      "type": "string"
+     },
+     "message": {
+      "type": "string"
+     },
+     "warning": {
+      "type": "string"
+     }
+    },
+    "required": []
+   },
+   "Signing": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "fee_agreement_id": {
+      "type": "string"
+     },
+     "matter_id": {
+      "type": "string"
+     },
+     "client_contact_id": {
+      "type": "string"
+     },
+     "state": {
+      "type": "string"
+     },
+     "label": {
+      "type": "string"
+     },
+     "sent_at": {
+      "type": "string"
+     },
+     "expires_at": {
+      "type": "string"
+     },
+     "sent_file_id": {
+      "type": "string"
+     },
+     "signed_file_id": {
+      "type": "string"
+     },
+     "invite_error": {
+      "type": "string"
+     },
+     "last_error": {
+      "type": "string"
+     }
+    },
+    "required": []
+   }
+  }
+ }
+}

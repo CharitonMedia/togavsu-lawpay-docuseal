@@ -298,6 +298,10 @@ settings:
     label: LawPay API address
     type: string
     default: "https://api.8am.com/v1"
+  - key: lawpay_hosted_fields_url
+    label: LawPay hosted fields script address
+    type: string
+    default: "https://cdn.affinipay.com/hostedfields/1.5.3/fieldGen_1.5.3.js"
   - key: lawpay_webhook_token
     label: LawPay webhook URL token
     type: string

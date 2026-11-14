@@ -1,0 +1,178 @@
+{{define "top"}}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:16px;color:#1d2433;background:#fff}
+table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #e3e6ec}
+.warn{background:#fff4e0;border:1px solid #e6b450;padding:8px 12px}.err{color:#a8231a}.muted{color:#69707d}
+form.inline{display:inline}label{display:block;margin:8px 0 2px}input,select,textarea{font:inherit}
+.hosted{border:1px solid #c5cad3;padding:8px;min-height:20px;margin-bottom:6px}
+</style></head><body>
+<h1>{{.Title}}</h1>
+{{end}}
+
+{{define "bottom"}}</body></html>{{end}}
+
+{{define "ctx"}}<input type="hidden" name="context" value="{{.Context}}">{{end}}
+
+{{define "notsetup"}}{{template "top" .}}
+<p>{{.Message}} An admin can finish the setup on the <a href="{{.SettingsLink}}" target="_top">module settings page</a>.</p>
+{{template "bottom" .}}{{end}}
+
+{{define "message"}}{{template "top" .}}
+<p class="{{if .Error}}err{{end}}">{{.Message}}</p>
+{{if .Detail}}<p>{{.Detail}}</p>{{end}}
+{{if .Back}}<p><a href="{{.Back}}" target="_top">Back</a></p>{{end}}
+{{template "bottom" .}}{{end}}
+
+{{define "payamount"}}{{template "top" .}}
+<form method="post" action="{{.Action}}">{{template "ctx" .}}
+<input type="hidden" name="purpose" value="trust_deposit"><input type="hidden" name="matter_id" value="{{.MatterID}}">
+<input type="hidden" name="return_to" value="{{.Back}}">
+<label for="amount">Amount (from {{dollars .Min}} to {{dollars .Max}})</label>
+<input id="amount" name="amount" inputmode="decimal" required>
+<p><button type="submit">Continue</button></p>
+</form>
+<p><a href="{{.Back}}" target="_top">Back</a></p>
+{{template "bottom" .}}{{end}}
+
+{{define "payfields"}}{{template "top" .}}
+<p>Amount: <strong>{{dollars .Intent.AmountCents}}</strong>{{if eq .Intent.Destination "trust"}} to the firm's trust account{{end}}.</p>
+<form id="pay-form" method="post" action="{{.Action}}" data-public-key="{{.Intent.PublicKey}}" data-hosted-fields="{{.HostedFields}}">
+{{template "ctx" .}}<input type="hidden" name="intent_id" value="{{.Intent.ID}}"><input type="hidden" name="token" value="">
+<input type="hidden" name="return_to" value="{{.Back}}">
+<label>Card number</label><div class="hosted" id="card-number"></div>
+<label>Expiration</label><div class="hosted" id="card-exp"></div>
+<label>Security code</label><div class="hosted" id="card-cvv"></div>
+<p id="pay-error" class="err"></p>
+<p><button type="submit">Pay {{dollars .Intent.AmountCents}}</button></p>
+</form>
+<p class="muted">This page expires at {{.Expires}}.</p>
+<p><a href="{{.Back}}" target="_top">Back</a></p>
+<script src="{{.Static}}/static/hostedfields.js"></script>
+{{template "bottom" .}}{{end}}
+
+{{define "payresult"}}{{template "top" .}}
+<p class="{{if .Error}}err{{end}}">{{.Result.Message}}</p>
+{{if .Result.LawPayChargeID}}<p>LawPay transaction: {{.Result.LawPayChargeID}}</p>{{end}}
+<p><a href="{{.Back}}" target="_top">Back</a></p>
+{{template "bottom" .}}{{end}}
+
+{{define "sign"}}{{template "top" .}}
+{{if eq .Signing.State "sent"}}
+<p>Your fee agreement is ready to sign. It opens in a new window.</p>
+<p><a href="{{.URL}}" target="_blank" rel="noopener">Sign</a></p>
+{{else}}<p>Status: {{.Signing.Label}}</p>{{end}}
+<p><a href="{{.Back}}" target="_top">Back</a></p>
+{{template "bottom" .}}{{end}}
+
+{{define "charge"}}{{template "top" .}}
+<form method="post" action="charge">{{template "ctx" .}}
+<input type="hidden" name="matter_id" value="{{.MatterID}}">
+<label for="amount">Amount</label><input id="amount" name="amount" inputmode="decimal" required>
+<label for="destination">Deposit to</label>
+<select id="destination" name="destination"><option value="operating">Operating</option><option value="trust">Trust</option></select>
+<label for="invoice">Invoice (operating only, optional)</label>
+<select id="invoice" name="invoice_id"><option value="">None</option>{{range .Invoices}}<option value="{{.ID}}">{{.Number}} ({{dollars .BalanceDueCents}} due)</option>{{end}}</select>
+<p><button type="submit">Continue to card or bank details</button></p>
+</form>
+{{template "bottom" .}}{{end}}
+
+{{define "refund"}}{{template "top" .}}
+{{if not .CanRefund}}<p>Only attorneys and admins can refund a payment.</p>{{else}}
+<p>Payment {{.Payment.ReferenceNumber}}: {{dollars .Payment.AmountCents}}, {{dollars .Left}} left to refund.</p>
+{{if .Warning}}<p class="warn">{{.Warning}}</p>{{end}}
+<form method="post" action="refund">{{template "ctx" .}}
+<input type="hidden" name="payment_id" value="{{.Payment.ID}}">
+<label for="amount">Amount</label><input id="amount" name="amount" value="{{plain .Amount}}" inputmode="decimal" required>
+<label for="reason">Reason</label><input id="reason" name="reason">
+<p><button type="submit">Refund</button></p>
+</form>
+<p class="muted">For a refund by check, use the trust refund in Togavsu.</p>{{end}}
+{{template "bottom" .}}{{end}}
+
+{{define "panel"}}{{template "top" .}}
+{{range .Agreements}}
+<section><h2>{{.FeeType}} {{if .AmountCents}}{{dollars (deref .AmountCents)}}{{end}}: {{.Status}}</h2>
+<p>{{.ServicesDescription}}</p></section>
+{{end}}
+{{range .Signings}}
+<section><p>Signing: {{.Label}}{{if .SentAt}}, sent {{.SentAt.Format "2006-01-02"}}{{end}}{{if .ExpiresAt}}, expires {{.ExpiresAt.Format "2006-01-02"}}{{end}}</p>
+{{if .InviteError}}<p class="warn">{{.InviteError}}</p>{{end}}
+{{if .ClientSignedDuringVoidAt}}<p class="warn">The client signed during voiding, at {{.ClientSignedDuringVoidAt.Format "2006-01-02 15:04"}}.</p>{{end}}
+{{if .LastError}}<p class="err">{{.LastError}}</p>{{end}}
+{{if and (not $.ReadOnly) (or (eq .State "sent") (eq .State "client_signed"))}}
+{{if eq .State "sent"}}<form class="inline" method="post" action="resend">{{template "ctx" $}}<input type="hidden" name="signing_id" value="{{.ID}}"><button>Resend signing link</button></form>{{end}}
+<form class="inline" method="post" action="void">{{template "ctx" $}}<input type="hidden" name="signing_id" value="{{.ID}}">
+<input name="reason" placeholder="Reason" required><button>Void</button></form>{{end}}
+</section>
+{{end}}
+{{if .ReadOnly}}<p class="muted">This matter is closed, so its fee agreement is read-only.</p>{{else}}
+<form method="post" action="fee-agreement">{{template "ctx" .}}
+<input type="hidden" name="matter_id" value="{{.MatterID}}"><input type="hidden" name="id" value="{{.DraftID}}">
+<label for="fee_type">Fee type</label><select id="fee_type" name="fee_type">
+<option value="flat">Flat fee</option><option value="hourly">Hourly (advance fee)</option><option value="mixed">Mixed</option>
+<option value="contingency">Contingency</option><option value="pro_bono">Pro bono</option></select>
+<label for="amount">Amount</label><input id="amount" name="amount" inputmode="decimal">
+<label for="services">Services</label><textarea id="services" name="services_description" maxlength="4000" required></textarea>
+<label for="case_number">Case number</label><input id="case_number" name="case_number" maxlength="100">
+<label><input type="checkbox" name="new_case" value="true"> New case</label>
+<p><button type="submit">Save draft</button></p></form>
+{{if .DraftID}}<form method="post" action="send">{{template "ctx" .}}<input type="hidden" name="agreement_id" value="{{.DraftID}}"><button>Send for signature</button></form>{{end}}
+{{end}}
+{{template "bottom" .}}{{end}}
+
+{{define "matter"}}{{template "top" .}}
+<h2>LawPay payments</h2>
+<table><tr><th>Date</th><th>Amount</th><th>To</th><th>State</th><th></th></tr>
+{{range .Transactions}}<tr><td>{{.CreatedAt.Format "2006-01-02"}}</td><td>{{dollars .AmountCents}}</td><td>{{.Destination}}</td><td>{{.State}}</td>
+<td>{{if and $.CanRefund (eq .Kind "charge") .PaymentID}}<a href="matter/refund?payment_id={{.PaymentID}}&amp;context={{$.Context}}">Refund</a>{{end}}</td></tr>{{end}}
+</table>
+{{range .Proposed}}<p class="warn">Proposed refund of {{dollars .AmountCents}}: {{.Reason}}
+{{if $.CanRefund}}<form class="inline" method="post" action="matter/issue">{{template "ctx" $}}<input type="hidden" name="refund_id" value="{{.ID}}"><button>Issue refund</button></form>{{end}}</p>{{end}}
+<h2>Client trust deposits</h2>
+<form method="post" action="matter/deposits">{{template "ctx" .}}<input type="hidden" name="matter_id" value="{{.MatterID}}">
+<input type="hidden" name="enabled" value="{{if .DepositsOn}}false{{else}}true{{end}}">
+<p>Client deposits are {{if .DepositsOn}}on{{else}}off{{end}}. <button>Turn {{if .DepositsOn}}off{{else}}on{{end}}</button></p></form>
+{{template "bottom" .}}{{end}}
+
+{{define "agreements"}}{{template "top" .}}
+<table><tr><th>Matter</th><th>Status</th><th>Sent</th></tr>
+{{range .Signings}}<tr><td>{{.MatterID}}</td><td>{{.Label}}</td><td>{{if .SentAt}}{{.SentAt.Format "2006-01-02"}}{{end}}</td></tr>{{end}}
+</table>
+{{template "bottom" .}}{{end}}
+
+{{define "reconciliation"}}{{template "top" .}}
+<h2>Exceptions</h2>
+{{range .Exceptions}}<section><p><strong>{{.Title}}</strong>{{if .AmountCents}}: {{dollars .AmountCents}}{{end}}. {{.Detail}}</p>
+{{if eq .Kind "unknown_transaction"}}<form method="post" action="record">{{template "ctx" $}}<input type="hidden" name="exception_id" value="{{.ID}}">
+<input name="matter_id" placeholder="Matter id" required><input name="contact_id" placeholder="Contact id" required><button>Record payment</button></form>{{end}}
+{{if eq .Kind "external_refund"}}<form method="post" action="post-refund">{{template "ctx" $}}<input type="hidden" name="exception_id" value="{{.ID}}"><button>Post refund</button></form>{{end}}
+<form method="post" action="resolve">{{template "ctx" $}}<input type="hidden" name="exception_id" value="{{.ID}}">
+<input name="note" placeholder="How was it resolved?" required><button>Resolve</button></form></section>
+{{else}}<p class="muted">No open exceptions.</p>{{end}}
+<h2>LawPay transactions</h2>
+<table><tr><th>Kind</th><th>Matter</th><th>Amount</th><th>To</th><th>State</th><th>Payment</th></tr>
+{{range .Transactions}}<tr><td>{{.Kind}}</td><td>{{.MatterID}}</td><td>{{dollars .AmountCents}}</td><td>{{.Destination}}</td><td>{{.State}}</td>
+<td>{{if .PaymentLink}}<a href="{{.PaymentLink}}" target="_top">Open</a>{{end}}</td></tr>{{end}}
+</table>
+{{range .Funded}}<form method="post" action="reopen">{{template "ctx" $}}<input type="hidden" name="invoice_id" value="{{.}}"><button>Reopen online payment</button></form>{{end}}
+{{template "bottom" .}}{{end}}
+
+{{define "setup"}}{{template "top" .}}
+<p>LawPay: {{.LawPay}}. Trust: {{.Trust}}. DocuSeal: {{.DocuSeal}}.</p>
+<h2>Webhook addresses</h2>
+<p>In LawPay, add the webhook <code>https://YOUR-TOGAVSU-ADDRESS/hooks/lawpay-docuseal/lawpay?token=</code> followed by the LawPay webhook URL token from the module settings.</p>
+<p>In DocuSeal, add the webhook <code>https://YOUR-TOGAVSU-ADDRESS/hooks/lawpay-docuseal/docuseal</code> and set the header X-Webhook-Token to the DocuSeal webhook token from the module settings.</p>
+<form method="post" action="setup">{{template "ctx" .}}<button>Test connection</button></form>
+<p>Change the keys and accounts on the <a href="{{.SettingsLink}}" target="_top">module settings page</a>.</p>
+{{template "bottom" .}}{{end}}
+
+{{define "widget_awaiting"}}{{template "top" .}}
+<p><a href="{{.Link}}sent" target="_top">{{.Sent}} awaiting the client</a></p>
+<p><a href="{{.Link}}client_signed" target="_top">{{.ClientSigned}} awaiting countersignature</a></p>
+{{template "bottom" .}}{{end}}
+
+{{define "widget_exceptions"}}{{template "top" .}}
+{{range .Kinds}}<p><a href="{{$.Link}}{{.Kind}}" target="_top">{{.Count}} {{.Title}}</a></p>{{else}}<p class="muted">Nothing needs attention.</p>{{end}}
+{{template "bottom" .}}{{end}}

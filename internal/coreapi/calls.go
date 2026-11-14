@@ -17,6 +17,9 @@ type ViewerInfo struct {
 	Roles    []string `json:"roles"`
 	Module   string   `json:"module"`
 	MatterID *string  `json:"matter_id"`
+	// ContactID is a client viewer's linked contact. The verify answer must carry it for
+	// client tokens; no CORE item names it yet (see the README's core gaps).
+	ContactID string `json:"contact_id"`
 }
 
 // Has reports whether the viewer holds any of roles.
