@@ -1,6 +1,7 @@
 package lawpaydocuseal
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -87,7 +88,7 @@ func TestVerifyCoreWebhook(t *testing.T) {
 func TestParseDocuSeal(t *testing.T) {
 	at := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
 	ds := fake.NewDocuSeal()
-	sub, err := ds.CreateSubmission(t.Context(), adapters.SubmissionRequest{Submitters: []adapters.SubmitterRequest{{Role: adapters.RoleClient}, {Role: adapters.RoleFirm}}})
+	sub, err := ds.CreateSubmission(context.Background(), adapters.SubmissionRequest{Submitters: []adapters.SubmitterRequest{{Role: adapters.RoleClient}, {Role: adapters.RoleFirm}}})
 	if err != nil {
 		t.Fatal(err)
 	}

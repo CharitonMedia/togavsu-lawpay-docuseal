@@ -1,0 +1,28 @@
+Togavsu LawPay and DocuSeal module
+License: Same as Togavsu
+
+This module is licensed under the same source-available terms as Togavsu, modeled on
+the Business Source License 1.1.
+
+Licensor: Chariton Media
+Licensed Work: the Togavsu LawPay and DocuSeal module, in this repository.
+
+Additional Use Grant: any firm may download, install, run and modify the Licensed Work
+for its own practice at no charge.
+
+Commercial hosting: anyone hosting the Licensed Work commercially, or serving it to
+other firms, needs a commercial license from the Licensor: $500 per year plus $2 per
+seat per month for every seat the host serves.
+
+Change Date: none. There is no change-date conversion; the source stays under these
+terms.
+
+The Licensed Work is provided "as is", without warranty of any kind. The Licensor and
+contributors are not liable for any claim, damages or other liability arising from the
+Licensed Work or its use.
+
+Marketplace listing is separate from this license: listing, flagging and pulling a module
+are marketplace terms and don't change anyone's rights to code they already have.
+
+LawPay and DocuSeal are services of their own providers. This license covers this
+module's code only; a firm needs its own LawPay and DocuSeal accounts and their terms.
