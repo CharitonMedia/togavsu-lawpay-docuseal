@@ -19,7 +19,7 @@ records by `ON DELETE RESTRICT` foreign keys. The full design is in [docs/SPEC.m
 
 ## Setup
 
-An admin opens **Admin > Modules > LawPay and DocuSeal > Settings** and enters:
+An admin opens **Administrative > Modules and marketplace > LawPay and DocuSeal** and enters:
 
 | Setting | What it is |
 | --- | --- |
@@ -40,8 +40,8 @@ and window minutes (10), sweep minutes (60), retries before an exception (3), pe
 check days (14), and days before an unsigned agreement expires (0, never).
 
 Secrets are never stored in the module's tables, written to its logs or returned in a
-response. The module reads them from the core on each request. **Module tabs > LawPay and
-DocuSeal setup** checks the connection: a LawPay read with the secret key, the trust account, and
+response. The module reads them from the core on each request. **Money > LawPay**, on the
+**LawPay and DocuSeal setup** tab, checks the connection: a LawPay read with the secret key, the trust account, and
 the DocuSeal template.
 
 ### Webhooks
@@ -60,9 +60,10 @@ limit, and each event id is handled once.
 ## Where things are
 
 - Client portal: **Pay** (invoice or trust deposit) and **Sign** (fee agreement).
-- Matter: **Payments and signing** (Take payment, Refund, client deposits on or off) and
-  **Fee agreement** (draft, Send for signature, Resend signing link, Void).
-- Module tabs: **Fee agreements**, **LawPay reconciliation**, **LawPay and DocuSeal setup**.
+- Matter screen: **Payments and signing** (client deposits on or off, proposed refunds),
+  **Actions > Take payment** and **Actions > Refund**, and the **Fee agreement** panel
+  (draft, Send for signature, Resend signing link, Void).
+- **Money > LawPay**: the **LawPay reconciliation**, **Fee agreements** and **LawPay and DocuSeal setup** tabs.
 - Dashboard widgets: agreements awaiting signature, and open exceptions.
 - Help pages are in the manifest under `help:`.
 
