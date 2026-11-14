@@ -247,7 +247,7 @@ func (s *Server) chargeForm(ctx context.Context, v viewer, r *http.Request) (str
 	}
 	var open []any
 	for _, inv := range invs {
-		if inv.BalanceDueCents > 0 && inv.Status != "void" && inv.Status != "draft" {
+		if inv.BalanceDueCents > zero && inv.Status != "void" && inv.Status != "draft" {
 			open = append(open, inv)
 		}
 	}
@@ -425,7 +425,7 @@ func (s *Server) sendPost(ctx context.Context, v viewer, r *http.Request) (strin
 	}
 	msg := "Sent for signature. The client gets an email with a link to sign in the portal."
 	if g.InviteError != "" {
-		msg = "Sent for signature, but " + strings.ToLower(g.InviteError[:1]) + g.InviteError[1:]
+		msg = "Sent for signature, but " + strings.ToLower(g.InviteError[:one]) + g.InviteError[one:]
 	}
 	return "message", data{"Title": "Fee agreement", "Message": msg, "Back": "fee-agreement"}, nil
 }

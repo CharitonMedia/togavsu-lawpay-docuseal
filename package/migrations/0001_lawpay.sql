@@ -1,5 +1,6 @@
--- LawPay records. Every core id is a foreign key with ON DELETE RESTRICT; no table holds a
--- copy of a core record (no names, emails, phones or addresses).
+-- LawPay records. Every core id is a foreign key with ON DELETE RESTRICT (the one to a core
+-- payment refund in 0005_payment_refund_link.sql); no table holds a copy of a core record
+-- (no names, emails, phones or addresses).
 
 -- Core events the module has handled, so each event id is handled once.
 CREATE TABLE received_events (
@@ -60,7 +61,8 @@ CREATE TABLE lawpay_refunds (
   id TEXT PRIMARY KEY,
   charge_id TEXT NOT NULL REFERENCES lawpay_charges (id) ON DELETE RESTRICT,
   payment_id TEXT NOT NULL REFERENCES core.payments (id) ON DELETE RESTRICT,
-  core_refund_id TEXT REFERENCES core.payment_refunds (id) ON DELETE RESTRICT,
+  -- Its foreign key to core.payment_refunds is in 0005_payment_refund_link.sql.
+  core_refund_id TEXT,
   lawpay_refund_id TEXT UNIQUE,
   amount_cents BIGINT NOT NULL CHECK (amount_cents > 0),
   reason TEXT NOT NULL DEFAULT '',

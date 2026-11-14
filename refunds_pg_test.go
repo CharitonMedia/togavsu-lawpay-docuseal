@@ -371,7 +371,8 @@ func TestPGModPay30(t *testing.T) {
 	e.hook(fake.RefundWebhook(full))
 	e.hook(fake.RefundWebhook(part))
 	ex := e.openExceptions("external_refund")
-	if len(ex) != 2 || ex[0]["amount_cents"].(float64) != 10000 {
+	// Both open at the same instant, so the list order between them is not fixed.
+	if len(ex) != 2 || ex[0]["amount_cents"].(float64)+ex[1]["amount_cents"].(float64) != 13000 {
 		t.Fatalf("exceptions %+v", ex)
 	}
 	if notes, _, _ := e.core.Snapshot(); len(notes) != 2 {

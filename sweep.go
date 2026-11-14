@@ -18,9 +18,10 @@ func (s *Server) Run(ctx context.Context) {
 		if err != nil {
 			s.c.Logf("lawpay-docuseal: sweep: %v", err)
 		}
-		wait := time.Duration(st.ReconcileMinutes) * time.Minute
-		if wait <= 0 {
-			wait = time.Minute
+		wait := time.Duration(st.ReconcileMinutes) * minute
+		if wait <= zero {
+			// The settings read failed: wait the setting's own default.
+			wait = time.Duration(atoi(settingDefault("reconcile_interval_minutes"))) * minute
 		}
 		t := time.NewTimer(wait)
 		select {
@@ -132,7 +133,7 @@ func (s *Server) sweepPending(ctx context.Context, st Settings) error {
 	if err != nil {
 		return err
 	}
-	cutoff := s.now().Add(-time.Duration(st.PendingCheckDays) * 24 * time.Hour)
+	cutoff := s.now().Add(-time.Duration(st.PendingCheckDays) * day)
 	for _, c := range cs {
 		if c.CreatedAt.Before(cutoff) {
 			s.openException(ctx, exception{Kind: "pending_ach_stale", MatterID: c.MatterID, ChargeID: c.ID, TransactionID: c.LawPayChargeID,

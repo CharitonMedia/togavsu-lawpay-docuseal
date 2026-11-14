@@ -482,14 +482,14 @@ func (q *request) initiate() (int, any, error) {
 		}
 		if b.Destination == "operating" {
 			inv, ok := q.c.invoices[b.InvoiceID]
-			if !ok || inv.MatterID != b.MatterID || inv.Status == "draft" || inv.TotalCents-inv.PaidCents <= 0 {
+			if !ok || inv.MatterID != b.MatterID || inv.Status == "draft" || inv.TotalCents-inv.PaidCents <= zero {
 				return 0, nil, errNotFound
 			}
 		}
 	} else if !u.has("admin", "attorney", "staff") {
 		return 0, nil, errForbidden
 	}
-	if b.Processor != ModuleID || b.AmountCents <= 0 {
+	if b.Processor != ModuleID || b.AmountCents <= zero {
 		return 0, nil, perr(http.StatusUnprocessableEntity, "validation_failed", "bad initialization")
 	}
 	if b.Destination == "trust" && !q.c.accounts[b.TrustAccountID] {
@@ -510,7 +510,7 @@ func (q *request) initiate() (int, any, error) {
 	}
 	cred := "grant-" + q.c.newID("prc")
 	q.c.grants[cred] = in.grant
-	exp := q.c.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	exp := q.c.Now().Add(grantLife).UTC().Format(time.RFC3339)
 	if !q.c.holdGrant {
 		q.deliveries = append(q.deliveries, q.c.event("payment.processor_authorized", "payment_processor_initialization", in.ID, b.MatterID,
 			map[string]any{"processor_authorization": map[string]any{"initialization_id": in.ID, "payment_id": in.PaymentID, "expires_at": exp}}, cred))
@@ -521,9 +521,9 @@ func (q *request) initiate() (int, any, error) {
 func payOut(p *Payment) map[string]any {
 	state := "none"
 	switch {
-	case p.RefundedCents > 0 && p.RefundedCents >= p.AmountCents:
+	case p.RefundedCents > zero && p.RefundedCents >= p.AmountCents:
 		state = "full"
-	case p.RefundedCents > 0:
+	case p.RefundedCents > zero:
 		state = "partial"
 	}
 	nul := func(s string) any {
@@ -547,7 +547,7 @@ func (q *request) complete(p *Payment) {
 	}
 	if inv, ok := q.c.invoices[p.InvoiceID]; ok {
 		inv.PaidCents += p.AmountCents
-		if inv.TotalCents-inv.PaidCents <= 0 {
+		if inv.TotalCents-inv.PaidCents <= zero {
 			inv.Status = "paid"
 		}
 	}
@@ -737,7 +737,7 @@ func (q *request) createRefund() (int, any, error) {
 			used += r.AmountCents
 		}
 	}
-	if b.AmountCents <= 0 || b.AmountCents > p.AmountCents-used {
+	if b.AmountCents <= zero || b.AmountCents > p.AmountCents-used {
 		return 0, nil, &problem{status: http.StatusUnprocessableEntity, code: "validation_failed", errorCode: "refund_exceeds_payment",
 			message: "refund_exceeds_payment", field: "amount_cents"}
 	}
@@ -765,7 +765,7 @@ func (q *request) completeRefund(p *Payment, r *Refund) {
 		q.c.trust = append(q.c.trust, TrustEntry{ID: q.c.newID("tle"), MatterID: p.MatterID, ClientID: p.ContactID, AccountID: p.TrustAccountID,
 			Type: "refund", PaymentID: p.ID, Cents: -r.AmountCents})
 		bal := q.c.balance(p.MatterID, "", "")
-		if bal < 0 {
+		if bal < zero {
 			q.c.TrustFlags = append(q.c.TrustFlags, TrustFlag{MatterID: p.MatterID, BalanceCents: bal})
 			q.c.Notifications = append(q.c.Notifications, Notification{Kind: "trust.flag_raised", Title: "Trust balance below zero",
 				Audience: "admins_and_responsible_attorney", MatterID: p.MatterID})
@@ -774,7 +774,7 @@ func (q *request) completeRefund(p *Payment, r *Refund) {
 	}
 	if inv, ok := q.c.invoices[p.InvoiceID]; ok {
 		inv.PaidCents -= r.AmountCents
-		if inv.Status == "paid" && inv.TotalCents-inv.PaidCents > 0 {
+		if inv.Status == "paid" && inv.TotalCents-inv.PaidCents > zero {
 			inv.Status = "sent"
 		}
 	}
@@ -1080,7 +1080,7 @@ func (q *request) notify() (int, any, error) {
 		return 0, nil, perr(http.StatusUnprocessableEntity, "validation_failed", "matter_id")
 	}
 	q.c.Notifications = append(q.c.Notifications, Notification{Kind: ModuleID + "." + b.Kind, Title: b.Title, Link: b.Link, Audience: b.Audience, MatterID: b.MatterID})
-	return http.StatusCreated, map[string]any{"created": 1}, nil
+	return http.StatusCreated, map[string]any{"created": createdOne}, nil
 }
 
 func (q *request) mail() (int, any, error) {
@@ -1100,7 +1100,7 @@ func (q *request) mail() (int, any, error) {
 	if !q.canMatter(b.MatterID) {
 		return 0, nil, errNotFound
 	}
-	if q.c.failNext["mail_result"] > 0 {
+	if q.c.failNext["mail_result"] > zero {
 		q.c.failNext["mail_result"]--
 		return http.StatusOK, map[string]any{"results": []any{map[string]any{"contact_id": b.To[0], "status": "failed", "error": "mailbox unavailable"}}}, nil
 	}

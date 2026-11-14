@@ -23,10 +23,10 @@ func ParseDollars(s string) (int64, error) {
 	if whole == "" {
 		whole = "0"
 	}
-	if dot && (frac == "" || len(frac) > 2) {
+	if dot && (frac == "" || len(frac) > centDigits) {
 		return 0, errAmount
 	}
-	for len(frac) < 2 {
+	for len(frac) < centDigits {
 		frac += "0"
 	}
 	w, err := adapters.ParseCents(whole)
@@ -37,7 +37,6 @@ func ParseDollars(s string) (int64, error) {
 	if err != nil {
 		return 0, errAmount
 	}
-	const centsPerDollar = 100
 	if w > (1<<62)/centsPerDollar {
 		return 0, errAmount
 	}
@@ -46,11 +45,11 @@ func ParseDollars(s string) (int64, error) {
 
 // plainDollars formats cents as 1234.56 for a form field.
 func plainDollars(c int64) string {
-	return strconv.FormatInt(c/100, 10) + "." + leftPad(strconv.FormatInt(c%100, 10))
+	return strconv.FormatInt(c/centsPerDollar, decimalBase) + "." + leftPad(strconv.FormatInt(c%centsPerDollar, decimalBase))
 }
 
 func leftPad(s string) string {
-	if len(s) < 2 {
+	if len(s) < centDigits {
 		return "0" + s
 	}
 	return s

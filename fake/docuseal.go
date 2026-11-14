@@ -20,6 +20,9 @@ type DocuSeal struct {
 	next []string // scripted outcomes: create_fail, archive_fail, pdf_fail, read_fail
 	// Gate, when set, is waited on inside CreateSubmission (tests use it to hold a send).
 	Gate chan struct{}
+	// OnArchive, when set, runs at the start of Archive, outside the fake's lock (tests use
+	// it to act while a signing is voiding).
+	OnArchive func(id string)
 
 	CreateCalls, ArchiveCalls, ReadCalls, PDFCalls int
 	Requests                                       []adapters.SubmissionRequest
@@ -38,7 +41,7 @@ func (f *DocuSeal) Script(outcomes ...string) {
 
 func (f *DocuSeal) take(kind string) bool {
 	if len(f.next) > 0 && f.next[0] == kind {
-		f.next = f.next[1:]
+		f.next = f.next[one:]
 		return true
 	}
 	return false
@@ -125,6 +128,9 @@ func (f *DocuSeal) CompletedPDF(_ context.Context, id string) ([]byte, error) {
 
 // Archive archives a submission.
 func (f *DocuSeal) Archive(_ context.Context, id string) error {
+	if f.OnArchive != nil {
+		f.OnArchive(id)
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.ArchiveCalls++

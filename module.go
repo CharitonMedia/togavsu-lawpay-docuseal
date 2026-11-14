@@ -8,13 +8,20 @@
 // on background reads. Money never moves outside the core: a LawPay charge becomes a core
 // payment and a LawPay refund becomes a core payment refund. Its own records live in schema
 // mod_lawpay_docuseal, linked to core ids by ON DELETE RESTRICT foreign keys.
+//
+// Packaging and signing go through the core's public module kit (pkg/modulekit): Build
+// holds back the parts package/pending.yaml lists that the pinned core refuses, then checks
+// and signs the rest with the code the core runs at install.
 package lawpaydocuseal
 
 import (
+	"crypto/ed25519"
 	"embed"
-	"errors"
 	"io/fs"
+	"strconv"
 	"strings"
+
+	"github.com/CharitonMedia/togavsu/pkg/modulekit"
 )
 
 // ID is the module id from the manifest.
@@ -26,58 +33,61 @@ const ManifestFile = "togavsu-module.yaml"
 //go:embed package
 var packageFS embed.FS
 
-// Files returns the package files (manifest and migrations) by package path.
+// Files returns the package files (manifest, migrations and pending.yaml) by package
+// path, read with the kit's rules (names starting with "." or "_" left out), so the
+// embedded package and the package directory on disk ship the same bytes.
 func Files() (map[string][]byte, error) {
-	out := map[string][]byte{}
-	err := fs.WalkDir(packageFS, "package", func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-		b, err := packageFS.ReadFile(p)
-		if err != nil {
-			return err
-		}
-		out[strings.TrimPrefix(p, "package/")] = b
-		return nil
-	})
-	return out, err
-}
-
-// Packager turns the package files into the signed package file the core installs. The
-// core owns the package format, the digest and the signature, and the module must not copy
-// or reimplement them: a copy would drift from what the core verifies at install. This
-// interface is the seam where a public packaging and signing package (or CLI) from the core
-// plugs in once one exists.
-type Packager interface {
-	// Package archives files and signs the archive with the Ed25519 key at keyPath,
-	// returning the signed package file.
-	Package(files map[string][]byte, keyPath string) ([]byte, error)
-}
-
-// ErrPackagerPending is what the stub answers: packaging waits on the core's public
-// packaging and signing package or CLI.
-var ErrPackagerPending = errors.New("lawpay-docuseal: packaging and signing wait on a public packaging package or CLI from the core; " +
-	"this build has no packager")
-
-// PendingPackager is the stub Packager until the core publishes one.
-type PendingPackager struct{}
-
-// Package always answers ErrPackagerPending.
-func (PendingPackager) Package(map[string][]byte, string) ([]byte, error) {
-	return nil, ErrPackagerPending
-}
-
-// Build packages and signs this module's files with p.
-func Build(p Packager, keyPath string, edit func(map[string][]byte)) ([]byte, error) {
-	if p == nil {
-		p = PendingPackager{}
-	}
-	files, err := Files()
+	dir, err := fs.Sub(packageFS, "package")
 	if err != nil {
 		return nil, err
 	}
-	if edit != nil {
-		edit(files)
+	return modulekit.Files(dir)
+}
+
+// Installable returns the package files the pinned core accepts (modulekit.Installable):
+// the package without package/pending.yaml and without each part it lists that the core
+// still refuses (Files), the parts it held back (Held) and the entries that held nothing
+// back (Unused). A part the core accepts stays in, so each one returns on its own when
+// its core item lands.
+func Installable() (modulekit.InstallablePackage, error) {
+	files, err := Files()
+	if err != nil {
+		return modulekit.InstallablePackage{}, err
 	}
-	return p.Package(files, keyPath)
+	return modulekit.Installable(files)
+}
+
+// Build writes the signed package file the admin installs: Installable's files, checked,
+// archived and signed with priv (modulekit.BuildInstallable). It returns Installable's
+// result with it.
+func Build(priv ed25519.PrivateKey) ([]byte, modulekit.InstallablePackage, error) {
+	files, err := Files()
+	if err != nil {
+		return nil, modulekit.InstallablePackage{}, err
+	}
+	return modulekit.BuildInstallable(priv, files)
+}
+
+// settingDefault is the default the manifest declares for a setting key, or "" when it
+// declares none.
+func settingDefault(key string) string {
+	raw, err := packageFS.ReadFile("package/" + ManifestFile)
+	if err != nil {
+		return ""
+	}
+	in := false
+	for _, line := range strings.Split(string(raw), "\n") {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "- key: ") {
+			in = t == "- key: "+key
+			continue
+		}
+		if v, ok := strings.CutPrefix(t, "default: "); ok && in {
+			if u, err := strconv.Unquote(v); err == nil {
+				return u
+			}
+			return v
+		}
+	}
+	return ""
 }

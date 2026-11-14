@@ -40,11 +40,12 @@ func (u uuid7) New() string {
 	ms := uint64(u.clock.Now().UnixMilli())
 	var t [8]byte
 	binary.BigEndian.PutUint64(t[:], ms)
-	copy(b[:6], t[2:])
-	b[6] = b[6]&0x0f | 0x70
-	b[8] = b[8]&0x3f | 0x80
+	copy(b[:uuidTimeBytes], t[uuidTimeSkip:])
+	b[uuidVersionAt] = b[uuidVersionAt]&0x0f | 0x70
+	b[uuidVariantAt] = b[uuidVariantAt]&0x3f | 0x80
 	h := hex.EncodeToString(b[:])
-	return h[:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:]
+	return h[:uuidGroupOne] + "-" + h[uuidGroupOne:uuidGroupTwo] + "-" + h[uuidGroupTwo:uuidGroupThree] + "-" +
+		h[uuidGroupThree:uuidGroupFour] + "-" + h[uuidGroupFour:]
 }
 
 // Config is what the container gets: the core's address, its secrets, its own database
@@ -171,7 +172,7 @@ func (st Settings) TrustConfigured() bool {
 
 // DocuSealReady reports whether every DocuSeal setting is set.
 func (st Settings) DocuSealReady() bool {
-	return st.DocuSealBase != "" && st.DocuSealKey != "" && st.DocuSealHookToken != "" && st.TemplateID > 0 &&
+	return st.DocuSealBase != "" && st.DocuSealKey != "" && st.DocuSealHookToken != "" && st.TemplateID > zero &&
 		st.SignerName != "" && st.SignerEmail != ""
 }
 
@@ -368,7 +369,7 @@ func tokenEqual(got, want string) bool {
 	if want == "" || got == "" {
 		return false
 	}
-	return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
+	return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == sameText
 }
 
 // ---- grants ----
@@ -454,7 +455,7 @@ func (s *Server) openException(ctx context.Context, e exception) (string, bool) 
 		s.c.Logf("lawpay-docuseal: exception %s not stored: %v", e.Kind, err)
 		return "", false
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if n, _ := res.RowsAffected(); n == noRows {
 		return "", false
 	}
 	audience := "admins"

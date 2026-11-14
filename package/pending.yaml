@@ -1,0 +1,51 @@
+# Parts of this package that wait on a core change (docs/modules/CORE-CHANGES.md in the
+# core). The package builds with modulekit.BuildInstallable, which holds back each part the
+# pinned core refuses and keeps each part it accepts, so a part comes back on its own when
+# its core item lands. The package tests fail on an entry that holds nothing back.
+pending:
+  - field: payment_processor
+    core: CORE-23
+    reason: Registers LawPay as the processor for operating and trust payments.
+  - field: inbound_webhooks
+    core: CORE-07
+    reason: Receives LawPay and DocuSeal webhooks through the core's public hook route.
+  - field: notifications
+    core: CORE-03
+    reason: Declares the exception and proposed refund notification kinds.
+  - field: sidebar[*].section
+    core: CORE-08
+    reason: Files the LawPay entry under Money in the sidebar.
+  - field: sidebar[*].icon
+    core: CORE-08
+    reason: Gives the LawPay sidebar entry its payment icon.
+  - field: sidebar[*].order
+    core: CORE-08
+    reason: Places the LawPay sidebar entry within Money.
+  # The client tabs pay and sign go whole, selected by id wherever they sit in tabs.
+  - field: tabs[id=pay]
+    core: CORE-10
+    reason: The client pay tab, framed in the portal and kept out of its nav.
+  - field: tabs[id=sign]
+    core: CORE-10
+    reason: The client sign tab, framed in the portal and kept out of its nav.
+  - field: tabs[*].params
+    core: CORE-10
+    reason: Passes the state and kind filters to the home tabs.
+  - field: data.extends
+    core: CORE-22
+    reason: Extends the core fee agreement with the case number and new case flag.
+  - scope: books:read
+    core: CORE-02
+    reason: Reads balances, payments and trust for the sweep and events with no one signed in.
+  - scope: mail:send
+    core: CORE-04
+    reason: Emails the client the signing link and void notices through system mail.
+  - scope: client_access:read
+    core: CORE-14
+    reason: Checks the client can sign in to the portal before a fee agreement is sent.
+  - migration: migrations/0004_fee_agreement_links.sql
+    core: CORE-22
+    reason: Links agreement details and signings to the core fee agreement.
+  - migration: migrations/0005_payment_refund_link.sql
+    core: [CORE-22, CORE-24]
+    reason: Links a LawPay refund to its core payment refund.

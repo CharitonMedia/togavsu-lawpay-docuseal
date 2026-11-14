@@ -17,13 +17,6 @@ import (
 	"github.com/CharitonMedia/togavsu-lawpay-docuseal/internal/coreapi"
 )
 
-// Fee agreement limits (U11). These are the agreement's legal shape, not tunables.
-const (
-	maxAgreementCents = 99999999
-	maxServicesRunes  = 4000
-	maxCaseNumber     = 100
-)
-
 // AgreementRequest saves a fee agreement draft.
 type AgreementRequest struct {
 	ID                  string `json:"id"`
@@ -57,7 +50,7 @@ func (s *Server) SaveDraft(ctx context.Context, v viewer, req AgreementRequest) 
 		return Agreement{}, &appError{Status: http.StatusUnprocessableEntity, Code: "validation_failed", Message: "Pick a fee type.", Fields: []string{"fee_type"}}
 	}
 	needsAmount := req.FeeType != "contingency" && req.FeeType != "pro_bono"
-	if (needsAmount && req.AmountCents == nil) || (req.AmountCents != nil && (*req.AmountCents <= 0 || *req.AmountCents > maxAgreementCents)) {
+	if (needsAmount && req.AmountCents == nil) || (req.AmountCents != nil && (*req.AmountCents <= zero || *req.AmountCents > maxAgreementCents)) {
 		return Agreement{}, &appError{Status: http.StatusUnprocessableEntity, Code: "validation_failed",
 			Message: "Enter an amount above $0.00 and at most " + dollars(maxAgreementCents) + ".", Fields: []string{"amount_cents"}}
 	}
@@ -358,8 +351,8 @@ func (s *Server) Send(ctx context.Context, v viewer, agreementID string) (Signin
 	bg := context.WithoutCancel(ctx)
 	ds := s.docuseal(st)
 	var expireAt time.Time
-	if st.ExpireDays > 0 {
-		expireAt = s.now().AddDate(0, 0, st.ExpireDays)
+	if st.ExpireDays > zero {
+		expireAt = s.now().AddDate(zero, zero, st.ExpireDays)
 	}
 	amount := ""
 	if fa.AmountCents != nil {
@@ -538,7 +531,7 @@ func (s *Server) Void(ctx context.Context, v viewer, id, reason string) (Signing
 	if err != nil {
 		return Signing{}, err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if n, _ := res.RowsAffected(); n == noRows {
 		return Signing{}, fail(http.StatusConflict, "not_voidable", "Only a sent agreement can be voided.")
 	}
 	bg := context.WithoutCancel(ctx)

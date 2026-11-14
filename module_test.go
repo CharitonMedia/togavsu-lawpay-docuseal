@@ -1,39 +1,9 @@
 package lawpaydocuseal
 
 import (
-	"errors"
 	"strings"
 	"testing"
 )
-
-type recordingPackager struct {
-	files map[string][]byte
-	key   string
-}
-
-func (p *recordingPackager) Package(files map[string][]byte, key string) ([]byte, error) {
-	p.files, p.key = files, key
-	return []byte("package"), nil
-}
-
-func TestBuildWaitsOnCorePackager(t *testing.T) {
-	if _, err := Build(nil, "key", nil); !errors.Is(err, ErrPackagerPending) {
-		t.Fatalf("nil packager: %v", err)
-	}
-	if _, err := Build(PendingPackager{}, "key", nil); !errors.Is(err, ErrPackagerPending) {
-		t.Fatalf("pending packager: %v", err)
-	}
-	p := &recordingPackager{}
-	out, err := Build(p, "/run/key", func(f map[string][]byte) { f["extra"] = []byte("x") })
-	if err != nil || string(out) != "package" || p.key != "/run/key" {
-		t.Fatalf("build: %v", err)
-	}
-	for _, want := range []string{ManifestFile, "migrations/0001_lawpay.sql", "migrations/0002_docuseal.sql", "migrations/0003_portal.sql", "extra"} {
-		if _, ok := p.files[want]; !ok {
-			t.Errorf("missing %s", want)
-		}
-	}
-}
 
 // The manifest carries the PRD identity and every setting the module reads.
 func TestManifestIdentityAndSettings(t *testing.T) {

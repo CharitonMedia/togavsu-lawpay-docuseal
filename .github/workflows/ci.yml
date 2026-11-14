@@ -21,6 +21,8 @@ jobs:
           --health-interval 5s
           --health-retries 20
     env:
+      # The superuser URL. The fake-core suite uses this database; the coretest suite
+      # (acceptance/) creates and drops its own databases from it.
       TOGAVSU_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/togavsu_lawpay_docuseal?sslmode=disable
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +34,11 @@ jobs:
       - name: Vet
         run: go vet ./...
       - name: Test
-        run: go test -race ./...
+        run: go test -race -timeout 0 ./...
+      # The core's own check of the package dir, as the marketplace checks it: the parts
+      # package/pending.yaml lists that the pinned core refuses held back, and (-strict)
+      # an entry that holds nothing back fails.
+      - name: Package check
+        run: go run github.com/CharitonMedia/togavsu/cmd/togavsu-module check -installable -strict package
       - name: Image
         run: docker build -t togavsu-lawpay-docuseal:ci .
